@@ -2,6 +2,7 @@
 #include <QQmlApplicationEngine>
 #include <QQuickWindow>
 #include <QSGRendererInterface>
+#include <QScreen>
 
 #include "app_environment.h"
 #include "import_qml_plugins.h"
@@ -11,6 +12,9 @@
 
 int main(int argc, char *argv[])
 {
+    QGuiApplication::setHighDpiScaleFactorRoundingPolicy(
+        Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
+
     QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
     QQuickWindow::setTextRenderType(QQuickWindow::QtTextRendering);
 
@@ -19,6 +23,12 @@ int main(int argc, char *argv[])
     std::setlocale(LC_NUMERIC, "C");
 
     qCInfo(lcShowroomApp) << "ShowroomPlayer starting";
+
+    if (const QScreen *screen = app.primaryScreen()) {
+        qCInfo(lcShowroomApp) << "Primary screen DPR:" << screen->devicePixelRatio()
+                              << "logical DPI:" << screen->logicalDotsPerInch()
+                              << "size:" << screen->size();
+    }
 
     QQmlApplicationEngine engine;
     QObject::connect(&engine, &QQmlApplicationEngine::quit, &app, &QGuiApplication::quit);
