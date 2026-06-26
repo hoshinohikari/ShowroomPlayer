@@ -6,6 +6,36 @@
 .vscode/
 build/
 .codegraph/
+.qmlls.ini
+CMakeUserPresets.json
+.qtcreator/
+libmpv/
+
+# --- Qt / Qt Design Studio (auto-generated) ---
+qds.cmake
+cmake/insight.cmake
+imports/CMakeLists.txt
+Dependencies/
+App/
+App/autogen/
+*.qmltypes
+
+# --- Qt / Qt Creator (local IDE settings) ---
+*.qtds
+CMakeLists.txt.shared
+CMakeLists.txt.user*
+*.qmlproject.user
+qtinsight.conf
+
+# --- CMake (build artifacts outside build/) ---
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+Testing/
+*_autogen/
+.qt/
+compile_commands.json
 
 # User-specific files
 *.rsuser

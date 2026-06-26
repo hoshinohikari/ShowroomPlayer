@@ -1,0 +1,7 @@
+module ShowroomPlayer
+linktarget ShowroomPlayerplugin
+optional plugin ShowroomPlayerplugin
+classname ShowroomPlayerPlugin
+typeinfo ShowroomPlayer.qmltypes
+singleton Constants 1.0 Constants.qml
+depends QtQuick

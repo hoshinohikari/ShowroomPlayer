@@ -1,0 +1,18 @@
+<RCC>
+    <qresource>
+        <file>content/App.qml</file>
+        <file>imports/ShowroomPlayer/Constants.qml</file>
+        <file>imports/ShowroomPlayer/qmldir</file>
+        <file>mpv/etc/builtin.conf</file>
+        <file>mpv/etc/encoding-profiles.conf</file>
+        <file>mpv/etc/input.conf</file>
+        <file>mpv/etc/mplayer-input.conf</file>
+        <file>mpv/etc/mpv.conf</file>
+        <file>mpv/etc/restore-old-bindings.conf</file>
+        <file>mpv/etc/restore-osc-bindings.conf</file>
+        <file>mpv/sub/osd_font.otf</file>
+        <file>mpv/TOOLS/osxbundle/mpv.app/Contents/Resources/mpv.conf</file>
+        <file>qtquickcontrols2.conf</file>
+        <file>ShowroomPlayer.qmlproject</file>
+    </qresource>
+</RCC>

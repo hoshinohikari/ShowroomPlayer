@@ -1,0 +1,8 @@
+#pragma once
+
+#include <QLoggingCategory>
+
+Q_DECLARE_LOGGING_CATEGORY(lcShowroomApp)
+Q_DECLARE_LOGGING_CATEGORY(lcShowroomApi)
+Q_DECLARE_LOGGING_CATEGORY(lcShowroomController)
+Q_DECLARE_LOGGING_CATEGORY(lcShowroomPlayer)
