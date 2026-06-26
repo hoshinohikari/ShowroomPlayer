@@ -46,6 +46,7 @@ signals:
 
 private slots:
     void pollOnlineRooms();
+    void startPollingIfNeeded();
 
 private:
     void resolveRoomId(const QString &username);

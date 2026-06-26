@@ -1,5 +1,6 @@
 #include "ShowroomController.h"
 #include "ShowroomApi.h"
+#include "ShowroomAuth.h"
 #include "ShowroomLog.h"
 
 #include <QDateTime>
@@ -112,11 +113,19 @@ QSet<qint64> parseLiveRoomIds(const QByteArray &payload)
 
 ShowroomController::ShowroomController(QObject *parent)
     : QObject(parent)
-    , m_api(new ShowroomApi(this))
+    , m_api(ShowroomApi::shared(this))
     , m_pollTimer(new QTimer(this))
 {
     m_pollTimer->setInterval(m_pollIntervalMs);
     connect(m_pollTimer, &QTimer::timeout, this, &ShowroomController::pollOnlineRooms);
+    qCInfo(lcShowroomController) << "Monitor ready, waiting for session check before polling";
+}
+
+void ShowroomController::startPollingIfNeeded()
+{
+    if (m_pollTimer->isActive())
+        return;
+
     m_pollTimer->start();
     qCInfo(lcShowroomController) << "Monitor started, poll interval:" << m_pollIntervalMs << "ms";
 }
@@ -126,6 +135,15 @@ ShowroomController *ShowroomController::create(QQmlEngine *engine, QJSEngine *sc
     Q_UNUSED(engine)
     Q_UNUSED(scriptEngine)
     static ShowroomController instance;
+    static bool wired = false;
+    if (!wired) {
+        wired = true;
+        ShowroomAuth *auth = ShowroomAuth::create(engine, scriptEngine);
+        QObject::connect(auth, &ShowroomAuth::sessionCheckFinished, &instance,
+                         &ShowroomController::startPollingIfNeeded);
+        if (auth->sessionCheckDone())
+            instance.startPollingIfNeeded();
+    }
     return &instance;
 }
 

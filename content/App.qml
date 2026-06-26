@@ -15,6 +15,8 @@ ApplicationWindow {
     color: theme.window
     font.family: "Segoe UI"
 
+    Component.onCompleted: ShowroomAuth.restoreSession()
+
     readonly property QtObject theme: QtObject {
         readonly property color window: "#0E1014"
         readonly property color surface: "#171A21"
@@ -44,6 +46,89 @@ ApplicationWindow {
         }
         function onErrorOccurred(message) {
             errorBanner.show(message)
+        }
+    }
+
+    Connections {
+        target: ShowroomAuth
+        function onLoginFailed(message) {
+            errorBanner.show(message)
+        }
+        function onLoginSucceeded(accountId) {
+            loginDialog.close()
+            loginPasswordField.clear()
+        }
+        function onSessionRestored(accountId) {
+            errorBanner.show(qsTr("Logged in as %1").arg(accountId))
+        }
+    }
+
+    Dialog {
+        id: loginDialog
+        title: qsTr("Showroom Login")
+        modal: true
+        anchors.centerIn: parent
+        width: Math.min(window.width - 48, 360)
+        padding: 16
+
+        background: Rectangle {
+            color: theme.surface
+            radius: theme.radius
+            border.color: theme.border
+            border.width: 1
+        }
+
+        header: Label {
+            text: loginDialog.title
+            color: theme.textPrimary
+            font.pixelSize: 16
+            font.weight: Font.Medium
+            padding: 16
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 12
+
+            DarkTextField {
+                id: loginAccountField
+                Layout.fillWidth: true
+                placeholderText: qsTr("Account ID")
+                selectByMouse: true
+                onAccepted: loginPasswordField.forceActiveFocus()
+            }
+
+            DarkTextField {
+                id: loginPasswordField
+                Layout.fillWidth: true
+                placeholderText: qsTr("Password")
+                echoMode: TextInput.Password
+                selectByMouse: true
+                onAccepted: loginSubmitButton.clicked()
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+
+                AccentButton {
+                    id: loginSubmitButton
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 1
+                    text: ShowroomAuth.busy ? qsTr("Logging in...") : qsTr("Login")
+                    enabled: !ShowroomAuth.busy
+                             && loginAccountField.text.trim().length > 0
+                             && loginPasswordField.text.length > 0
+                    onClicked: ShowroomAuth.login(loginAccountField.text, loginPasswordField.text)
+                }
+
+                SecondaryButton {
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 1
+                    text: qsTr("Cancel")
+                    enabled: !ShowroomAuth.busy
+                    onClicked: loginDialog.close()
+                }
+            }
         }
     }
 
@@ -82,6 +167,30 @@ ApplicationWindow {
                    : parent.pressed ? theme.accentPressed
                    : parent.hovered ? theme.accentHover
                    : theme.accent
+        }
+    }
+
+    component SecondaryButton: Button {
+        padding: 10
+        font.pixelSize: 14
+        font.weight: Font.Medium
+
+        contentItem: Text {
+            text: parent.text
+            font: parent.font
+            color: parent.enabled ? theme.textSecondary : theme.textMuted
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+        }
+
+        background: Rectangle {
+            radius: theme.radiusSm
+            color: !parent.enabled ? theme.surface
+                   : parent.pressed ? theme.surfaceHover
+                   : parent.hovered ? theme.surfaceHover
+                   : theme.input
+            border.color: theme.border
+            border.width: 1
         }
     }
 
@@ -139,6 +248,85 @@ ApplicationWindow {
                 anchors.fill: parent
                 anchors.margins: 16
                 spacing: 14
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 2
+
+                        Label {
+                            text: {
+                                if (ShowroomAuth.loggedIn)
+                                    return qsTr("Logged in successfully")
+                                if (ShowroomAuth.busy)
+                                    return qsTr("Checking session...")
+                                return qsTr("Guest")
+                            }
+                            color: ShowroomAuth.loggedIn ? theme.liveSoft : theme.textMuted
+                            font.pixelSize: 11
+                            font.weight: ShowroomAuth.loggedIn ? Font.Medium : Font.Normal
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            text: ShowroomAuth.loggedIn
+                                  ? (ShowroomAuth.displayName.length > 0
+                                     ? ShowroomAuth.displayName
+                                     : ShowroomAuth.accountId)
+                                  : qsTr("Not signed in")
+                            color: theme.textPrimary
+                            font.pixelSize: 14
+                            font.weight: Font.Medium
+                            elide: Text.ElideRight
+                        }
+
+                        Label {
+                            Layout.fillWidth: true
+                            visible: ShowroomAuth.loggedIn && ShowroomAuth.displayName.length > 0
+                            text: ShowroomAuth.accountId
+                            color: theme.textSecondary
+                            font.pixelSize: 12
+                            elide: Text.ElideRight
+                        }
+                    }
+
+                    AccentButton {
+                        visible: !ShowroomAuth.loggedIn
+                        text: ShowroomAuth.busy ? qsTr("Please wait...") : qsTr("Login")
+                        enabled: !ShowroomAuth.busy
+                        onClicked: loginDialog.open()
+                    }
+
+                    Button {
+                        visible: ShowroomAuth.loggedIn
+                        text: qsTr("Logout")
+                        enabled: !ShowroomAuth.busy
+                        onClicked: ShowroomAuth.logout()
+
+                        contentItem: Text {
+                            text: parent.text
+                            color: theme.textSecondary
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+
+                        background: Rectangle {
+                            radius: theme.radiusSm
+                            color: parent.hovered ? theme.surfaceHover : theme.input
+                            border.color: theme.border
+                            border.width: 1
+                        }
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 1
+                    color: theme.border
+                }
 
                 ColumnLayout {
                     Layout.fillWidth: true

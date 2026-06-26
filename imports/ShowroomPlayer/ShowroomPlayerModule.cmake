@@ -16,6 +16,10 @@ qt6_add_qml_module(ShowroomPlayer
         MpvVideoItem.h
         ShowroomApi.cpp
         ShowroomApi.h
+        ShowroomSessionStore.cpp
+        ShowroomSessionStore.h
+        ShowroomAuth.cpp
+        ShowroomAuth.h
         ShowroomController.cpp
         ShowroomController.h
         UserListModel.cpp

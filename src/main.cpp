@@ -3,6 +3,7 @@
 #include <QQuickWindow>
 #include <QSGRendererInterface>
 #include <QScreen>
+#include <QCoreApplication>
 
 #include "app_environment.h"
 #include "import_qml_plugins.h"
@@ -19,6 +20,9 @@ int main(int argc, char *argv[])
     QQuickWindow::setTextRenderType(QQuickWindow::QtTextRendering);
 
     set_qt_environment();
+
+    QCoreApplication::setApplicationName(QStringLiteral("ShowroomPlayer"));
+
     QGuiApplication app(argc, argv);
     std::setlocale(LC_NUMERIC, "C");
 
