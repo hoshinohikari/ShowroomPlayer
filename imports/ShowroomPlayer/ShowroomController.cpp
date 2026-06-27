@@ -9,6 +9,8 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QQmlEngine>
+#include <QtQml/qqml.h>
+#include <QMetaObject>
 #include <QNetworkReply>
 #include <QTimer>
 #include <QUrlQuery>
@@ -119,31 +121,112 @@ ShowroomController::ShowroomController(QObject *parent)
     m_pollTimer->setInterval(m_pollIntervalMs);
     connect(m_pollTimer, &QTimer::timeout, this, &ShowroomController::pollOnlineRooms);
     qCInfo(lcShowroomController) << "Monitor ready, waiting for session check before polling";
+    QTimer::singleShot(0, this, &ShowroomController::wireAuth);
+}
+
+void ShowroomController::ensureAuth()
+{
+    if (m_auth)
+        return;
+
+    if (m_qmlEngine) {
+        m_auth = m_qmlEngine->singletonInstance<ShowroomAuth *>(
+            QStringLiteral("ShowroomPlayer"), QStringLiteral("ShowroomAuth"));
+    }
+
+    if (!m_auth)
+        m_auth = ShowroomAuth::instance();
+}
+
+bool ShowroomController::isLoggedIn() const
+{
+    return m_auth && m_auth->loggedIn();
 }
 
 void ShowroomController::startPollingIfNeeded()
 {
-    if (m_pollTimer->isActive())
+    if (!m_pollTimer->isActive())
+        m_pollTimer->start();
+
+    if (m_pollInFlight) {
+        m_pollPending = true;
+        return;
+    }
+
+    qCInfo(lcShowroomController) << "Monitor started, poll interval:" << m_pollIntervalMs << "ms";
+    QMetaObject::invokeMethod(this, &ShowroomController::pollOnlineRooms, Qt::QueuedConnection);
+}
+
+void ShowroomController::ensureMonitoring()
+{
+    startPollingIfNeeded();
+}
+
+void ShowroomController::connectAuthSignals()
+{
+    if (m_authWired)
+        return;
+    m_authWired = true;
+
+    QObject::connect(m_auth, &ShowroomAuth::sessionCheckFinished, this,
+                     &ShowroomController::startPollingIfNeeded);
+    QObject::connect(m_auth, &ShowroomAuth::loginSucceeded, this,
+                     &ShowroomController::pollOnlineRooms);
+    QObject::connect(m_auth, &ShowroomAuth::loggedInChanged, this,
+                     &ShowroomController::onLoggedInChanged);
+}
+
+void ShowroomController::wireToAuth(ShowroomAuth *auth)
+{
+    if (!auth) {
+        qCWarning(lcShowroomController) << "wireToAuth called with null auth";
+        return;
+    }
+
+    m_auth = auth;
+
+    if (m_authWired)
         return;
 
-    m_pollTimer->start();
-    qCInfo(lcShowroomController) << "Monitor started, poll interval:" << m_pollIntervalMs << "ms";
+    connectAuthSignals();
+    qCInfo(lcShowroomController) << "Auth wiring complete";
+
+    if (m_auth->sessionCheckDone())
+        startPollingIfNeeded();
+}
+
+void ShowroomController::wireAuth()
+{
+    if (!m_qmlEngine) {
+        QTimer::singleShot(0, this, &ShowroomController::wireAuth);
+        return;
+    }
+
+    ShowroomAuth *auth = m_qmlEngine->singletonInstance<ShowroomAuth *>(
+        QStringLiteral("ShowroomPlayer"), QStringLiteral("ShowroomAuth"));
+    if (!auth) {
+        QTimer::singleShot(0, this, &ShowroomController::wireAuth);
+        return;
+    }
+
+    wireToAuth(auth);
+}
+
+void ShowroomController::onLoggedInChanged()
+{
+    if (!isLoggedIn())
+        m_dismissedFollowers.clear();
 }
 
 ShowroomController *ShowroomController::create(QQmlEngine *engine, QJSEngine *scriptEngine)
 {
-    Q_UNUSED(engine)
     Q_UNUSED(scriptEngine)
     static ShowroomController instance;
-    static bool wired = false;
-    if (!wired) {
-        wired = true;
-        ShowroomAuth *auth = ShowroomAuth::create(engine, scriptEngine);
-        QObject::connect(auth, &ShowroomAuth::sessionCheckFinished, &instance,
-                         &ShowroomController::startPollingIfNeeded);
-        if (auth->sessionCheckDone())
-            instance.startPollingIfNeeded();
-    }
+    if (engine)
+        instance.m_qmlEngine = engine;
+    else if (scriptEngine)
+        instance.m_qmlEngine = qmlEngine(scriptEngine);
+    QQmlEngine::setObjectOwnership(&instance, QQmlEngine::CppOwnership);
     return &instance;
 }
 
@@ -195,6 +278,8 @@ void ShowroomController::addUser(const QString &username)
         return;
     }
 
+    m_dismissedFollowers.remove(trimmed.toLower());
+
     const int row = m_users.appendUser(trimmed, 0);
     qCInfo(lcShowroomController) << "Added user to monitor list:" << trimmed << "row:" << row;
 
@@ -211,6 +296,7 @@ void ShowroomController::removeUser(int index)
         return;
 
     const QString username = m_users.userAt(index).username;
+    m_dismissedFollowers.insert(username.trimmed().toLower());
     m_users.removeAt(index);
     qCInfo(lcShowroomController) << "Removed user from monitor list:" << username << "row:" << index;
 
@@ -229,6 +315,12 @@ void ShowroomController::selectUser(int index)
 {
     if (index < 0 || index >= m_users.rowCount()) {
         qCWarning(lcShowroomController) << "Reject select user: invalid index" << index;
+        return;
+    }
+
+    if (m_selectedIndex == index) {
+        qCInfo(lcShowroomController) << "Resuming playback for" << m_users.userAt(index).username;
+        playSelectedUserIfLive();
         return;
     }
 
@@ -274,32 +366,103 @@ void ShowroomController::resolveRoomId(const QString &username)
     });
 }
 
+void ShowroomController::syncFollowerMonitors(const QJsonArray &rooms, QSet<qint64> *liveRoomIds)
+{
+    for (const QJsonValue &roomValue : rooms) {
+        if (!roomValue.isObject())
+            continue;
+
+        const QJsonObject room = roomValue.toObject();
+        const QString username = room.value(QLatin1String("room_url_key")).toString().trimmed();
+        const qint64 roomId = parseRoomId(room, "room_id");
+        const bool isOnline = room.value(QLatin1String("is_online")).toInt(0) != 0;
+
+        if (!isOnline || username.isEmpty() || roomId <= 0)
+            continue;
+
+        if (m_dismissedFollowers.contains(username.toLower()))
+            continue;
+
+        if (liveRoomIds)
+            liveRoomIds->insert(roomId);
+
+        if (m_users.containsUsername(username))
+            continue;
+
+        const int row = m_users.appendUser(username, roomId);
+        m_users.setLive(row, true);
+        qCInfo(lcShowroomController) << "Auto-added live follower:" << username << "room:" << roomId;
+
+        if (m_selectedIndex < 0)
+            setSelectedIndex(row);
+    }
+}
+
+void ShowroomController::finishPoll(const QSet<qint64> &liveRoomIds)
+{
+    m_pollInFlight = false;
+    refreshLiveStatus(liveRoomIds);
+
+    if (m_pollPending) {
+        m_pollPending = false;
+        QMetaObject::invokeMethod(this, &ShowroomController::pollOnlineRooms, Qt::QueuedConnection);
+    }
+}
+
 void ShowroomController::pollOnlineRooms()
 {
     if (m_pollInFlight) {
+        m_pollPending = true;
         qCDebug(lcShowroomController) << "Skip poll: previous request still in flight";
         return;
     }
 
-    if (m_users.rowCount() == 0) {
-        qCDebug(lcShowroomController) << "Skip poll: monitor list is empty";
+    ensureAuth();
+    const bool loggedIn = isLoggedIn();
+    if (m_users.rowCount() == 0 && !loggedIn) {
+        qCDebug(lcShowroomController) << "Skip poll: monitor list is empty and not logged in";
         return;
     }
 
-    qCDebug(lcShowroomController) << "Polling online rooms, monitored users:" << m_users.rowCount();
+    qCInfo(lcShowroomController) << "Polling online rooms, monitored users:" << m_users.rowCount()
+                                  << "logged in:" << loggedIn;
     m_pollInFlight = true;
     m_api->get(QStringLiteral("api/live/onlives"), QUrlQuery(), [this](QNetworkReply *reply) {
-        m_pollInFlight = false;
-
-        if (reply->error() != QNetworkReply::NoError) {
+        QSet<qint64> liveRoomIds;
+        if (reply->error() == QNetworkReply::NoError)
+            liveRoomIds = parseLiveRoomIds(reply->readAll());
+        else
             qCCritical(lcShowroomController) << "Poll online rooms failed:" << reply->errorString();
-            emit errorOccurred(tr("Failed to fetch online rooms"));
+
+        qCDebug(lcShowroomController) << "Online room count from API:" << liveRoomIds.size();
+
+        if (!isLoggedIn()) {
+            if (reply->error() != QNetworkReply::NoError)
+                emit errorOccurred(tr("Failed to fetch online rooms"));
+            finishPoll(liveRoomIds);
             return;
         }
 
-        const QSet<qint64> liveRoomIds = parseLiveRoomIds(reply->readAll());
-        qCDebug(lcShowroomController) << "Online room count from API:" << liveRoomIds.size();
-        refreshLiveStatus(liveRoomIds);
+        qCInfo(lcShowroomController) << "Fetching follow rooms for logged-in user";
+        m_api->get(QStringLiteral("api/follow/rooms"), QUrlQuery(),
+                   [this, liveRoomIds](QNetworkReply *followReply) mutable {
+                       QSet<qint64> mergedLiveRoomIds = liveRoomIds;
+
+                       if (followReply->error() == QNetworkReply::NoError) {
+                           const QJsonDocument document =
+                               QJsonDocument::fromJson(followReply->readAll());
+                           const QJsonArray rooms =
+                               document.object().value(QLatin1String("rooms")).toArray();
+
+                           syncFollowerMonitors(rooms, &mergedLiveRoomIds);
+                           qCInfo(lcShowroomController) << "Follow rooms fetched, count:" << rooms.size();
+                       } else {
+                           qCWarning(lcShowroomController)
+                               << "Fetch follow rooms failed:" << followReply->errorString();
+                       }
+
+                       finishPoll(mergedLiveRoomIds);
+                   });
     });
 }
 
@@ -354,6 +517,12 @@ void ShowroomController::playSelectedUserIfLive()
 
 void ShowroomController::fetchStreamUrl(qint64 roomId, const QString &username)
 {
+    if (m_fetchingStreamRoomId == roomId) {
+        qCDebug(lcShowroomController) << "Skip duplicate stream fetch for room:" << roomId;
+        return;
+    }
+
+    m_fetchingStreamRoomId = roomId;
     qCInfo(lcShowroomController) << "Fetching stream URL for" << username << "room:" << roomId;
 
     QUrlQuery query;
@@ -364,6 +533,9 @@ void ShowroomController::fetchStreamUrl(qint64 roomId, const QString &username)
 
     m_api->get(QStringLiteral("api/live/streaming_url"), query,
                [this, username, roomId](QNetworkReply *reply) {
+                   if (m_fetchingStreamRoomId == roomId)
+                       m_fetchingStreamRoomId = -1;
+
                    if (reply->error() != QNetworkReply::NoError) {
                        qCCritical(lcShowroomController) << "Fetch stream failed for" << username
                                                         << ":" << reply->errorString();

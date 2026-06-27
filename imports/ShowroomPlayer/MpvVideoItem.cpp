@@ -184,7 +184,7 @@ void MpvVideoItem::loadUrl(const QString &url)
     mpv_set_property_string(m_mpv, "demuxer-lavf-o", "live_start_index=-1");
 
     const QByteArray bytes = trimmed.toUtf8();
-    const char *args[] = {"loadfile", bytes.constData(), nullptr};
+    const char *args[] = {"loadfile", bytes.constData(), "replace", nullptr};
     if (mpv_command(m_mpv, args) < 0) {
         qCCritical(lcShowroomPlayer) << "mpv loadfile command failed";
         emit playbackError(tr("Failed to load URL"));
@@ -295,6 +295,16 @@ void MpvVideoItem::handleMpvEvents()
                 qCCritical(lcShowroomPlayer) << "Playback error:"
                                              << mpv_error_string(endFile->error);
                 emit playbackError(tr("Playback error: %1").arg(mpv_error_string(endFile->error)));
+                m_currentUrl.clear();
+                setPlaying(false);
+            } else if (endFile->reason == MPV_END_FILE_REASON_EOF) {
+                qCInfo(lcShowroomPlayer) << "Playback ended (EOF)";
+                m_currentUrl.clear();
+                setPlaying(false);
+            } else if (endFile->reason == MPV_END_FILE_REASON_STOP
+                       || endFile->reason == MPV_END_FILE_REASON_REDIRECT) {
+                // loadfile replace / HLS redirect — not a user-visible stop
+                qCDebug(lcShowroomPlayer) << "Playback interrupted, reason:" << endFile->reason;
             } else {
                 qCInfo(lcShowroomPlayer) << "Playback ended, reason:" << endFile->reason;
                 m_currentUrl.clear();
@@ -304,6 +314,7 @@ void MpvVideoItem::handleMpvEvents()
             qCInfo(lcShowroomPlayer) << "Stream loaded";
             m_behindLive = false;
             setAtLiveEdge(true);
+            setPlaying(true);
         } else if (event->event_id == MPV_EVENT_PROPERTY_CHANGE) {
             const auto *prop = static_cast<mpv_event_property *>(event->data);
             if (std::strcmp(prop->name, "pause") == 0 && prop->format == MPV_FORMAT_FLAG) {

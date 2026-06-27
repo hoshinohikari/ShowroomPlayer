@@ -2,6 +2,7 @@
 
 #include "UserListModel.h"
 
+#include <QJsonArray>
 #include <QObject>
 #include <QSet>
 #include <QtQml/qqmlregistration.h>
@@ -10,6 +11,7 @@ class QQmlEngine;
 class QJSEngine;
 class ShowroomApi;
 class QTimer;
+class ShowroomAuth;
 
 class ShowroomController : public QObject
 {
@@ -37,6 +39,8 @@ public slots:
     void addUser(const QString &username);
     void removeUser(int index);
     void selectUser(int index);
+    void wireToAuth(ShowroomAuth *auth);
+    void ensureMonitoring();
 
 signals:
     void selectedIndexChanged();
@@ -47,17 +51,30 @@ signals:
 private slots:
     void pollOnlineRooms();
     void startPollingIfNeeded();
+    void onLoggedInChanged();
 
 private:
     void resolveRoomId(const QString &username);
     void refreshLiveStatus(const QSet<qint64> &liveRoomIds);
+    void syncFollowerMonitors(const QJsonArray &rooms, QSet<qint64> *liveRoomIds);
     void fetchStreamUrl(qint64 roomId, const QString &username);
     void playSelectedUserIfLive();
+    void finishPoll(const QSet<qint64> &liveRoomIds);
+    void ensureAuth();
+    void wireAuth();
+    void connectAuthSignals();
+    bool isLoggedIn() const;
 
     UserListModel m_users;
     ShowroomApi *m_api;
+    QQmlEngine *m_qmlEngine = nullptr;
+    ShowroomAuth *m_auth = nullptr;
     QTimer *m_pollTimer;
     int m_selectedIndex = -1;
     int m_pollIntervalMs = 20000;
     bool m_pollInFlight = false;
+    bool m_pollPending = false;
+    bool m_authWired = false;
+    qint64 m_fetchingStreamRoomId = -1;
+    QSet<QString> m_dismissedFollowers;
 };

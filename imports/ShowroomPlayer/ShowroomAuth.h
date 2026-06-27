@@ -22,6 +22,7 @@ public:
     explicit ShowroomAuth(QObject *parent = nullptr);
 
     static ShowroomAuth *create(QQmlEngine *engine, QJSEngine *scriptEngine);
+    static ShowroomAuth *instance();
 
     bool loggedIn() const { return m_loggedIn; }
     bool busy() const { return m_busy; }
@@ -29,6 +30,8 @@ public:
     QString accountId() const { return m_accountId; }
     QString userId() const { return m_userId; }
     QString displayName() const { return m_displayName; }
+
+    Q_INVOKABLE void ensureSessionRestore();
 
 public slots:
     void login(const QString &accountId, const QString &password);
@@ -56,6 +59,8 @@ private:
     void finishSessionCheck();
     void fetchCsrfAndLogin(const QString &accountId, const QString &password);
     static QString parseCsrfToken(const QByteArray &html);
+
+    static ShowroomAuth *s_instance;
 
     ShowroomApi *m_api;
     bool m_loggedIn = false;

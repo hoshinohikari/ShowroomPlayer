@@ -15,8 +15,6 @@ ApplicationWindow {
     color: theme.window
     font.family: "Segoe UI"
 
-    Component.onCompleted: ShowroomAuth.restoreSession()
-
     readonly property QtObject theme: QtObject {
         readonly property color window: "#0E1014"
         readonly property color surface: "#171A21"
@@ -39,14 +37,9 @@ ApplicationWindow {
         readonly property int radiusSm: 6
     }
 
-    Connections {
-        target: ShowroomController
-        function onPlayStream(url) {
-            player.loadUrl(url)
-        }
-        function onErrorOccurred(message) {
-            errorBanner.show(message)
-        }
+    Component.onCompleted: {
+        ShowroomAuth.ensureSessionRestore()
+        ShowroomController.wireToAuth(ShowroomAuth)
     }
 
     Connections {
@@ -60,6 +53,16 @@ ApplicationWindow {
         }
         function onSessionRestored(accountId) {
             errorBanner.show(qsTr("Logged in as %1").arg(accountId))
+        }
+    }
+
+    Connections {
+        target: ShowroomController
+        function onPlayStream(url) {
+            player.loadUrl(url)
+        }
+        function onErrorOccurred(message) {
+            errorBanner.show(message)
         }
     }
 
@@ -468,7 +471,9 @@ ApplicationWindow {
                         horizontalAlignment: Text.AlignHCenter
                         color: theme.textMuted
                         font.pixelSize: 13
-                        text: qsTr("Add a username to start monitoring")
+                        text: ShowroomAuth.loggedIn
+                              ? qsTr("Live followed rooms will appear here automatically")
+                              : qsTr("Add a username to start monitoring")
                         visible: userList.count === 0
                     }
                 }
@@ -518,6 +523,13 @@ ApplicationWindow {
                 color: theme.video
                 z: 0
 
+                MouseArea {
+                    anchors.fill: parent
+                    enabled: ShowroomController.selectedIndex >= 0
+                    cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    onClicked: ShowroomController.selectUser(ShowroomController.selectedIndex)
+                }
+
                 ColumnLayout {
                     anchors.centerIn: parent
                     spacing: 8
@@ -534,7 +546,7 @@ ApplicationWindow {
                     Label {
                         Layout.alignment: Qt.AlignHCenter
                         text: ShowroomController.selectedIndex >= 0
-                              ? qsTr("Select the user again to resume")
+                              ? qsTr("Click to resume")
                               : qsTr("Select a live user from the monitor list")
                         color: theme.textMuted
                         font.pixelSize: 13

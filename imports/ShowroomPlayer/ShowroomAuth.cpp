@@ -11,6 +11,8 @@
 #include <QRegularExpression>
 #include <QTimer>
 
+ShowroomAuth *ShowroomAuth::s_instance = nullptr;
+
 ShowroomAuth::ShowroomAuth(QObject *parent)
     : QObject(parent)
     , m_api(ShowroomApi::shared(this))
@@ -18,15 +20,35 @@ ShowroomAuth::ShowroomAuth(QObject *parent)
     qCInfo(lcShowroomAuth) << "Auth service initialized";
 }
 
+ShowroomAuth *ShowroomAuth::instance()
+{
+    return s_instance;
+}
+
 ShowroomAuth *ShowroomAuth::create(QQmlEngine *engine, QJSEngine *scriptEngine)
 {
-    Q_UNUSED(engine)
     Q_UNUSED(scriptEngine)
-    static ShowroomAuth instance;
-    QQmlEngine::setObjectOwnership(&instance, QQmlEngine::CppOwnership);
+
+    if (!s_instance) {
+        s_instance = new ShowroomAuth();
+        QQmlEngine::setObjectOwnership(s_instance, QQmlEngine::CppOwnership);
+    }
+
+    if (engine)
+        s_instance->ensureSessionRestore();
+
+    return s_instance;
+}
+
+void ShowroomAuth::ensureSessionRestore()
+{
+    static bool restoreScheduled = false;
+    if (restoreScheduled || m_sessionCheckDone)
+        return;
+
+    restoreScheduled = true;
     qCInfo(lcShowroomAuth) << "Auth singleton ready, scheduling session restore";
-    QTimer::singleShot(0, &instance, &ShowroomAuth::restoreSession);
-    return &instance;
+    QTimer::singleShot(0, this, &ShowroomAuth::restoreSession);
 }
 
 void ShowroomAuth::finishSessionCheck()
