@@ -4,6 +4,8 @@
 #include <QHash>
 #include <QJsonObject>
 #include <QString>
+#include <QTimer>
+#include <QVector>
 
 struct LiveChatEntry
 {
@@ -38,18 +40,30 @@ public:
 public slots:
     void ingestPayload(const QJsonObject &payload);
     void ingestGiftList(const QJsonObject &giftList);
-    void clear();
+    void clearMessages();
+    void clearGiftNames();
 
 signals:
-    void messageAppended();
+    void messagesFlushed();
+
+private slots:
+    void flushPending();
 
 private:
-    void appendEntry(const LiveChatEntry &entry);
+    void scheduleFlush();
+    bool tryMergeGift(const LiveChatEntry &entry);
+    void trimExcessBeforeInsert(int incomingCount);
     bool parsePayload(const QJsonObject &payload, LiveChatEntry *entry) const;
     QString giftNameForId(int giftId) const;
     QString giftTextForEntry(const LiveChatEntry &entry) const;
+    void refreshGiftRows();
 
     QList<LiveChatEntry> m_entries;
+    QVector<LiveChatEntry> m_pending;
     QHash<int, QString> m_giftNames;
-    static constexpr int kMaxEntries = 400;
+    QTimer *m_flushTimer = nullptr;
+
+    static constexpr int kMaxEntries = 300;
+    static constexpr int kMaxPendingPerFlush = 40;
+    static constexpr int kFlushIntervalMs = 33;
 };

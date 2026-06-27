@@ -840,31 +840,80 @@ ApplicationWindow {
                     color: theme.border
                 }
 
+                Timer {
+                    id: chatScrollTimer
+                    interval: 50
+                    repeat: false
+                    onTriggered: {
+                        if (chatList.count > 0 && chatList.autoScrollEnabled)
+                            chatList.positionViewAtEnd()
+                    }
+                }
+
                 ListView {
                     id: chatList
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    spacing: 8
+                    spacing: 6
                     clip: true
                     model: ShowroomController.liveChat
                     boundsBehavior: Flickable.StopAtBounds
+                    reuseItems: true
+                    cacheBuffer: height * 2
+
+                    // true while the view is pinned to the bottom; disabled when user scrolls up
+                    property bool autoScrollEnabled: true
+
+                    function syncAutoScrollFromPosition() {
+                        autoScrollEnabled = atYEnd
+                    }
+
+                    onCountChanged: {
+                        if (count === 0)
+                            autoScrollEnabled = true
+                    }
+
+                    onMovementEnded: syncAutoScrollFromPosition()
+
+                    onFlickingChanged: {
+                        if (!flicking && !moving)
+                            syncAutoScrollFromPosition()
+                    }
+
+                    WheelHandler {
+                        blocking: false
+                        onWheel: (event) => {
+                            if (event.angleDelta.y > 0)
+                                chatList.autoScrollEnabled = false
+                            else if (event.angleDelta.y < 0)
+                                Qt.callLater(chatList.syncAutoScrollFromPosition)
+                        }
+                    }
 
                     Connections {
                         target: ShowroomController.liveChat
-                        function onMessageAppended() {
-                            if (chatList.count > 0)
-                                chatList.positionViewAtEnd()
+                        function onMessagesFlushed() {
+                            if (chatList.autoScrollEnabled)
+                                chatScrollTimer.restart()
                         }
                     }
 
                     ScrollBar.vertical: ScrollBar {
+                        id: chatScrollBar
                         policy: ScrollBar.AsNeeded
+
+                        onPressedChanged: {
+                            if (!pressed)
+                                chatList.syncAutoScrollFromPosition()
+                        }
                     }
 
                     delegate: Item {
                         id: chatRow
                         width: chatList.width
-                        height: chatBody.implicitHeight
+                        height: accountText.visible
+                              ? accountText.implicitHeight + bodyText.implicitHeight + 2
+                              : bodyText.implicitHeight
 
                         readonly property string messageKind: model.kind
                         readonly property color accentColor: {
@@ -877,28 +926,28 @@ ApplicationWindow {
                             return theme.liveSoft
                         }
 
-                        Column {
-                            id: chatBody
+                        Text {
+                            id: accountText
                             width: parent.width
-                            spacing: 2
+                            visible: model.account.length > 0
+                            text: model.account
+                            color: chatRow.accentColor
+                            font.pixelSize: 12
+                            font.weight: Font.Medium
+                            maximumLineCount: 1
+                            elide: Text.ElideRight
+                        }
 
-                            Label {
-                                width: parent.width
-                                visible: model.account.length > 0
-                                text: model.account
-                                color: chatRow.accentColor
-                                font.pixelSize: 12
-                                font.weight: Font.Medium
-                                elide: Text.ElideRight
-                            }
-
-                            Label {
-                                width: parent.width
-                                text: model.text
-                                color: theme.textPrimary
-                                font.pixelSize: 13
-                                wrapMode: Text.Wrap
-                            }
+                        Text {
+                            id: bodyText
+                            width: parent.width
+                            y: accountText.visible ? accountText.implicitHeight + 2 : 0
+                            text: model.text
+                            color: theme.textPrimary
+                            font.pixelSize: 13
+                            wrapMode: Text.Wrap
+                            maximumLineCount: 4
+                            elide: Text.ElideRight
                         }
                     }
 

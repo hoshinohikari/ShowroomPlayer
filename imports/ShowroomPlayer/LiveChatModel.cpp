@@ -38,11 +38,35 @@ QString readAccount(const QJsonObject &payload)
     return payload.value(QLatin1String("ac")).toString().trimmed();
 }
 
+int readJsonInt(const QJsonValue &value)
+{
+    if (value.isDouble())
+        return value.toInt();
+    if (value.isString()) {
+        bool ok = false;
+        const int parsed = value.toString().toInt(&ok);
+        if (ok)
+            return parsed;
+    }
+    return 0;
+}
+
+bool isSameGiftBurst(const LiveChatEntry &left, const LiveChatEntry &right)
+{
+    return left.kind == QLatin1String("gift") && right.kind == QLatin1String("gift")
+           && left.account == right.account && left.giftId == right.giftId
+           && left.giftId > 0;
+}
+
 } // namespace
 
 LiveChatModel::LiveChatModel(QObject *parent)
     : QAbstractListModel(parent)
+    , m_flushTimer(new QTimer(this))
 {
+    m_flushTimer->setInterval(kFlushIntervalMs);
+    m_flushTimer->setSingleShot(true);
+    connect(m_flushTimer, &QTimer::timeout, this, &LiveChatModel::flushPending);
 }
 
 int LiveChatModel::rowCount(const QModelIndex &parent) const
@@ -105,13 +129,16 @@ QString LiveChatModel::giftNameForId(int giftId) const
 void LiveChatModel::ingestGiftList(const QJsonObject &giftList)
 {
     QHash<int, QString> names;
-    for (const QLatin1StringView key : {QLatin1StringView("enquete"), QLatin1StringView("normal")}) {
-        const QJsonArray items = giftList.value(key).toArray();
+    for (auto it = giftList.begin(); it != giftList.end(); ++it) {
+        if (!it.value().isArray())
+            continue;
+
+        const QJsonArray items = it.value().toArray();
         for (const QJsonValue &itemValue : items) {
             if (!itemValue.isObject())
                 continue;
             const QJsonObject item = itemValue.toObject();
-            const int giftId = item.value(QLatin1String("gift_id")).toInt(0);
+            const int giftId = readJsonInt(item.value(QLatin1String("gift_id")));
             const QString giftName = item.value(QLatin1String("gift_name")).toString().trimmed();
             if (giftId > 0 && !giftName.isEmpty())
                 names.insert(giftId, giftName);
@@ -121,13 +148,27 @@ void LiveChatModel::ingestGiftList(const QJsonObject &giftList)
     m_giftNames = std::move(names);
     qCInfo(lcShowroomLive) << "Gift list loaded," << m_giftNames.size() << "entries";
 
-    if (!m_entries.isEmpty()) {
-        for (int row = 0; row < m_entries.size(); ++row) {
-            if (m_entries.at(row).kind == QLatin1String("gift")) {
-                const QModelIndex idx = index(row);
-                emit dataChanged(idx, idx, {TextRole});
-            }
-        }
+    refreshGiftRows();
+}
+
+void LiveChatModel::refreshGiftRows()
+{
+    if (m_entries.isEmpty())
+        return;
+
+    int firstGiftRow = -1;
+    int lastGiftRow = -1;
+    for (int row = 0; row < m_entries.size(); ++row) {
+        if (m_entries.at(row).kind != QLatin1String("gift"))
+            continue;
+        if (firstGiftRow < 0)
+            firstGiftRow = row;
+        lastGiftRow = row;
+    }
+
+    if (firstGiftRow >= 0) {
+        emit dataChanged(index(firstGiftRow), index(lastGiftRow), {TextRole});
+        qCDebug(lcShowroomLive) << "Refreshed gift rows" << firstGiftRow << ".." << lastGiftRow;
     }
 }
 
@@ -148,8 +189,8 @@ bool LiveChatModel::parsePayload(const QJsonObject &payload, LiveChatEntry *entr
 
     if (payload.contains(QLatin1String("g"))) {
         entry->kind = QStringLiteral("gift");
-        entry->giftId = payload.value(QLatin1String("g")).toInt(0);
-        entry->giftCount = payload.value(QLatin1String("n")).toInt(1);
+        entry->giftId = readJsonInt(payload.value(QLatin1String("g")));
+        entry->giftCount = readJsonInt(payload.value(QLatin1String("n")));
         if (entry->giftCount < 1)
             entry->giftCount = 1;
         return entry->giftId > 0;
@@ -184,36 +225,104 @@ void LiveChatModel::ingestPayload(const QJsonObject &payload)
     if (!parsePayload(payload, &entry))
         return;
 
-    appendEntry(entry);
-}
-
-void LiveChatModel::appendEntry(const LiveChatEntry &entry)
-{
-    if (m_entries.size() >= kMaxEntries) {
-        beginRemoveRows({}, 0, 0);
-        m_entries.removeFirst();
-        endRemoveRows();
+    if (tryMergeGift(entry)) {
+        scheduleFlush();
+        return;
     }
 
-    const int row = m_entries.size();
-    beginInsertRows({}, row, row);
-    m_entries.append(entry);
-    endInsertRows();
-
-    qCDebug(lcShowroomLive) << "Chat" << entry.kind << entry.account
-                            << (entry.kind == QLatin1String("gift") ? giftTextForEntry(entry)
-                                                                    : entry.text.left(80));
-    emit messageAppended();
+    m_pending.append(entry);
+    scheduleFlush();
 }
 
-void LiveChatModel::clear()
+bool LiveChatModel::tryMergeGift(const LiveChatEntry &entry)
 {
+    if (entry.kind != QLatin1String("gift"))
+        return false;
+
+    if (!m_pending.isEmpty() && isSameGiftBurst(m_pending.last(), entry)) {
+        m_pending.last().giftCount += entry.giftCount;
+        return true;
+    }
+
+    if (!m_entries.isEmpty() && isSameGiftBurst(m_entries.last(), entry)) {
+        LiveChatEntry &last = m_entries.last();
+        last.giftCount += entry.giftCount;
+        const int row = m_entries.size() - 1;
+        const QModelIndex idx = index(row);
+        emit dataChanged(idx, idx, {TextRole});
+        return true;
+    }
+
+    return false;
+}
+
+void LiveChatModel::scheduleFlush()
+{
+    if (!m_flushTimer->isActive())
+        m_flushTimer->start();
+}
+
+void LiveChatModel::trimExcessBeforeInsert(int incomingCount)
+{
+    const int total = m_entries.size() + incomingCount;
+    if (total <= kMaxEntries)
+        return;
+
+    const int removeCount = total - kMaxEntries;
+    beginRemoveRows({}, 0, removeCount - 1);
+    m_entries.erase(m_entries.begin(), m_entries.begin() + removeCount);
+    endRemoveRows();
+}
+
+void LiveChatModel::flushPending()
+{
+    if (m_pending.isEmpty())
+        return;
+
+    const int batchSize = qMin(m_pending.size(), kMaxPendingPerFlush);
+    QList<LiveChatEntry> batch;
+    batch.reserve(batchSize);
+    for (int i = 0; i < batchSize; ++i)
+        batch.append(m_pending.at(i));
+    m_pending.remove(0, batchSize);
+
+    trimExcessBeforeInsert(batch.size());
+
+    const int firstRow = m_entries.size();
+    const int lastRow = firstRow + batch.size() - 1;
+    beginInsertRows({}, firstRow, lastRow);
+    m_entries.append(batch);
+    endInsertRows();
+
+    qCDebug(lcShowroomLive) << "Chat flush:" << batch.size() << "rows,"
+                            << m_pending.size() << "queued," << m_entries.size() << "visible";
+
+    emit messagesFlushed();
+
+    if (!m_pending.isEmpty())
+        m_flushTimer->start();
+}
+
+void LiveChatModel::clearMessages()
+{
+    m_flushTimer->stop();
+    m_pending.clear();
+
     if (m_entries.isEmpty())
         return;
 
     beginResetModel();
     m_entries.clear();
-    m_giftNames.clear();
     endResetModel();
-    qCInfo(lcShowroomLive) << "Live chat cleared";
+    qCInfo(lcShowroomLive) << "Live chat messages cleared";
+}
+
+void LiveChatModel::clearGiftNames()
+{
+    if (m_giftNames.isEmpty())
+        return;
+
+    m_giftNames.clear();
+    refreshGiftRows();
+    qCInfo(lcShowroomLive) << "Gift name map cleared";
 }

@@ -124,8 +124,14 @@ ShowroomController::ShowroomController(QObject *parent)
     m_liveSocket = new ShowroomLiveSocket(m_api, this);
     connect(m_liveSocket, &ShowroomLiveSocket::commentReceived, &m_liveChat,
             &LiveChatModel::ingestPayload);
-    connect(m_liveSocket, &ShowroomLiveSocket::disconnected, &m_liveChat, &LiveChatModel::clear);
-    connect(m_liveSocket, &ShowroomLiveSocket::connected, &m_liveChat, &LiveChatModel::clear);
+    connect(m_liveSocket, &ShowroomLiveSocket::disconnected, this, [this]() {
+        m_liveChat.clearMessages();
+        m_liveChat.clearGiftNames();
+    });
+    connect(m_liveSocket, &ShowroomLiveSocket::connected, this, [this](qint64 roomId) {
+        m_liveChat.clearMessages();
+        fetchGiftList(roomId);
+    });
     qCInfo(lcShowroomController) << "Monitor ready, waiting for session check before polling";
     QTimer::singleShot(0, this, &ShowroomController::wireAuth);
 }
@@ -532,7 +538,6 @@ void ShowroomController::startLiveSocket(qint64 roomId)
     if (!m_liveSocket)
         return;
 
-    fetchGiftList(roomId);
     m_liveSocket->connectToRoom(roomId);
 }
 
@@ -565,7 +570,16 @@ void ShowroomController::fetchGiftList(qint64 roomId)
                        return;
                    }
 
-                   m_liveChat.ingestGiftList(doc.object());
+                   const QJsonObject root = doc.object();
+                   m_liveChat.ingestGiftList(root);
+
+                   const auto sample = root.value(QLatin1String("normal")).toArray();
+                   if (!sample.isEmpty() && sample.first().isObject()) {
+                       const QJsonObject firstGift = sample.first().toObject();
+                       qCDebug(lcShowroomController) << "Gift list sample:"
+                                                       << firstGift.value(QLatin1String("gift_id")).toVariant()
+                                                       << firstGift.value(QLatin1String("gift_name")).toString();
+                   }
                });
 }
 
