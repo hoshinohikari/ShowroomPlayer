@@ -70,6 +70,7 @@ private:
     void startLiveSocket(qint64 roomId);
     void stopLiveSocket();
     void fetchGiftList(qint64 roomId);
+    void fetchEventStatus(qint64 roomId);
     void finishPoll(const QSet<qint64> &liveRoomIds);
     void ensureAuth();
     void wireAuth();

@@ -973,7 +973,9 @@ ApplicationWindow {
 
                     Label {
                         Layout.fillWidth: true
-                        text: qsTr("Gifts")
+                        text: ShowroomController.liveGifts.eventActive
+                              ? qsTr("Gifts · Event x2.5")
+                              : qsTr("Gifts")
                         color: theme.textPrimary
                         font.pixelSize: 13
                         font.weight: Font.Medium
@@ -984,6 +986,65 @@ ApplicationWindow {
                         height: 8
                         radius: 4
                         color: ShowroomController.liveGifts.count > 0 ? "#FFB74D" : theme.textMuted
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: Constants.giftRankHeight
+                    radius: 8
+                    color: theme.window
+                    border.color: theme.border
+                    border.width: 1
+                    clip: true
+
+                    ListView {
+                        id: giftRankList
+                        anchors.fill: parent
+                        anchors.margins: 6
+                        spacing: 4
+                        clip: true
+                        model: ShowroomController.liveGifts.contributors
+                        boundsBehavior: Flickable.StopAtBounds
+
+                        delegate: RowLayout {
+                            width: giftRankList.width
+                            spacing: 6
+
+                            Label {
+                                Layout.preferredWidth: 28
+                                text: "#" + model.rank
+                                color: model.rank <= 3 ? "#FFB74D" : theme.textMuted
+                                font.pixelSize: 11
+                                font.weight: Font.Medium
+                            }
+
+                            Label {
+                                Layout.fillWidth: true
+                                text: model.account
+                                color: theme.textPrimary
+                                font.pixelSize: 11
+                                elide: Text.ElideRight
+                            }
+
+                            Label {
+                                text: model.totalPt + " pt"
+                                color: "#FFB74D"
+                                font.pixelSize: 11
+                                font.weight: Font.Medium
+                            }
+                        }
+
+                        Label {
+                            anchors.centerIn: parent
+                            width: parent.width - 12
+                            horizontalAlignment: Text.AlignHCenter
+                            wrapMode: Text.WordWrap
+                            text: qsTr("Contributor ranking")
+                            color: theme.textMuted
+                            font.pixelSize: 11
+                            visible: giftRankList.count === 0
+                        }
                     }
                 }
 
@@ -1000,7 +1061,7 @@ ApplicationWindow {
                 ListView {
                     id: giftList
                     Layout.fillWidth: true
-                    Layout.preferredHeight: Constants.giftPanelHeight
+                    Layout.preferredHeight: Constants.giftPanelHeight - Constants.giftRankHeight
                     spacing: 4
                     clip: true
                     model: ShowroomController.liveGifts
@@ -1056,13 +1117,15 @@ ApplicationWindow {
 
                     delegate: Item {
                         width: giftList.width
-                        height: giftAccountText.implicitHeight + giftBodyText.implicitHeight + 1
+                        height: giftAccountText.implicitHeight + giftBodyText.implicitHeight + giftMetaText.implicitHeight + 2
 
                         Text {
                             id: giftAccountText
                             width: parent.width
                             visible: model.account.length > 0
-                            text: model.account
+                            text: model.rank > 0
+                                  ? qsTr("%1  #%2").arg(model.account).arg(model.rank)
+                                  : model.account
                             color: "#FFB74D"
                             font.pixelSize: 11
                             font.weight: Font.Medium
@@ -1073,10 +1136,22 @@ ApplicationWindow {
                         Text {
                             id: giftBodyText
                             width: parent.width
-                            y: giftAccountText.visible ? giftAccountText.implicitHeight + 1 : 0
+                            y: giftAccountText.implicitHeight + 1
                             text: model.text
                             color: theme.textPrimary
                             font.pixelSize: 12
+                            maximumLineCount: 1
+                            elide: Text.ElideRight
+                        }
+
+                        Text {
+                            id: giftMetaText
+                            width: parent.width
+                            y: giftAccountText.implicitHeight + giftBodyText.implicitHeight + 2
+                            visible: model.totalPt > 0
+                            text: qsTr("Session total: %1 pt").arg(model.totalPt)
+                            color: theme.textMuted
+                            font.pixelSize: 10
                             maximumLineCount: 1
                             elide: Text.ElideRight
                         }

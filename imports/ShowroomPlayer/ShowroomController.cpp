@@ -112,6 +112,27 @@ QSet<qint64> parseLiveRoomIds(const QByteArray &payload)
     return roomIds;
 }
 
+bool parseEventActive(const QJsonObject &root)
+{
+    if (root.value(QLatin1String("is_event")).toBool())
+        return true;
+
+    const QJsonObject event = root.value(QLatin1String("event")).toObject();
+    if (event.isEmpty())
+        return false;
+
+    if (event.value(QLatin1String("is_open")).toBool())
+        return true;
+    if (event.value(QLatin1String("is_ongoing")).toBool())
+        return true;
+
+    const int eventId = parseRoomId(event, "event_id");
+    if (eventId > 0 && !event.value(QLatin1String("ended")).toBool())
+        return true;
+
+    return false;
+}
+
 } // namespace
 
 ShowroomController::ShowroomController(QObject *parent)
@@ -127,12 +148,13 @@ ShowroomController::ShowroomController(QObject *parent)
     connect(m_liveSocket, &ShowroomLiveSocket::disconnected, this, [this]() {
         m_liveChat.clearMessages();
         m_liveGifts.clearMessages();
-        m_liveGifts.clearGiftNames();
+        m_liveGifts.clearGiftCatalog();
     });
     connect(m_liveSocket, &ShowroomLiveSocket::connected, this, [this](qint64 roomId) {
         m_liveChat.clearMessages();
         m_liveGifts.clearMessages();
         fetchGiftList(roomId);
+        fetchEventStatus(roomId);
     });
     qCInfo(lcShowroomController) << "Monitor ready, waiting for session check before polling";
     QTimer::singleShot(0, this, &ShowroomController::wireAuth);
@@ -590,6 +612,40 @@ void ShowroomController::fetchGiftList(qint64 roomId)
                                                        << firstGift.value(QLatin1String("gift_id")).toVariant()
                                                        << firstGift.value(QLatin1String("gift_name")).toString();
                    }
+               });
+}
+
+void ShowroomController::fetchEventStatus(qint64 roomId)
+{
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("room_id"), QString::number(roomId));
+
+    m_api->get(QStringLiteral("api/room/event_and_support"), query,
+               [this, roomId](QNetworkReply *reply) {
+                   if (reply->error() != QNetworkReply::NoError) {
+                       qCDebug(lcShowroomController) << "Event status fetch failed for room"
+                                                     << roomId << ":" << reply->errorString();
+                       m_liveGifts.setEventActive(false);
+                       return;
+                   }
+
+                   if (m_selectedIndex < 0)
+                       return;
+
+                   const MonitoredUser selected = m_users.userAt(m_selectedIndex);
+                   if (selected.roomId != roomId)
+                       return;
+
+                   const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+                   if (!doc.isObject()) {
+                       m_liveGifts.setEventActive(false);
+                       return;
+                   }
+
+                   const bool eventActive = parseEventActive(doc.object());
+                   m_liveGifts.setEventActive(eventActive);
+                   qCInfo(lcShowroomController) << "Room" << roomId << "event bonus"
+                                                << (eventActive ? "active" : "inactive");
                });
 }
 
