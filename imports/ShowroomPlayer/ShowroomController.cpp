@@ -122,14 +122,16 @@ ShowroomController::ShowroomController(QObject *parent)
     m_pollTimer->setInterval(m_pollIntervalMs);
     connect(m_pollTimer, &QTimer::timeout, this, &ShowroomController::pollOnlineRooms);
     m_liveSocket = new ShowroomLiveSocket(m_api, this);
-    connect(m_liveSocket, &ShowroomLiveSocket::commentReceived, &m_liveChat,
-            &LiveChatModel::ingestPayload);
+    connect(m_liveSocket, &ShowroomLiveSocket::commentReceived, this,
+            &ShowroomController::ingestLiveMessage);
     connect(m_liveSocket, &ShowroomLiveSocket::disconnected, this, [this]() {
         m_liveChat.clearMessages();
-        m_liveChat.clearGiftNames();
+        m_liveGifts.clearMessages();
+        m_liveGifts.clearGiftNames();
     });
     connect(m_liveSocket, &ShowroomLiveSocket::connected, this, [this](qint64 roomId) {
         m_liveChat.clearMessages();
+        m_liveGifts.clearMessages();
         fetchGiftList(roomId);
     });
     qCInfo(lcShowroomController) << "Monitor ready, waiting for session check before polling";
@@ -533,6 +535,14 @@ void ShowroomController::playSelectedUserIfLive()
     fetchStreamUrl(user.roomId, user.username);
 }
 
+void ShowroomController::ingestLiveMessage(const QJsonObject &payload)
+{
+    if (payload.contains(QLatin1String("g")))
+        m_liveGifts.ingestPayload(payload);
+    else
+        m_liveChat.ingestPayload(payload);
+}
+
 void ShowroomController::startLiveSocket(qint64 roomId)
 {
     if (!m_liveSocket)
@@ -571,7 +581,7 @@ void ShowroomController::fetchGiftList(qint64 roomId)
                    }
 
                    const QJsonObject root = doc.object();
-                   m_liveChat.ingestGiftList(root);
+                   m_liveGifts.ingestGiftList(root);
 
                    const auto sample = root.value(QLatin1String("normal")).toArray();
                    if (!sample.isEmpty() && sample.first().isObject()) {

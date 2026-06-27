@@ -2,6 +2,7 @@
 
 #include "UserListModel.h"
 #include "LiveChatModel.h"
+#include "LiveGiftModel.h"
 
 #include <QJsonArray>
 #include <QObject>
@@ -22,6 +23,7 @@ class ShowroomController : public QObject
     QML_SINGLETON
     Q_PROPERTY(UserListModel *users READ users CONSTANT)
     Q_PROPERTY(LiveChatModel *liveChat READ liveChat CONSTANT)
+    Q_PROPERTY(LiveGiftModel *liveGifts READ liveGifts CONSTANT)
     Q_PROPERTY(int selectedIndex READ selectedIndex WRITE setSelectedIndex NOTIFY selectedIndexChanged)
     Q_PROPERTY(int pollIntervalMs READ pollIntervalMs WRITE setPollIntervalMs NOTIFY pollIntervalMsChanged)
 
@@ -33,6 +35,7 @@ public:
 
     UserListModel *users() { return &m_users; }
     LiveChatModel *liveChat() { return &m_liveChat; }
+    LiveGiftModel *liveGifts() { return &m_liveGifts; }
     int selectedIndex() const { return m_selectedIndex; }
     int pollIntervalMs() const { return m_pollIntervalMs; }
 
@@ -56,6 +59,7 @@ private slots:
     void pollOnlineRooms();
     void startPollingIfNeeded();
     void onLoggedInChanged();
+    void ingestLiveMessage(const QJsonObject &payload);
 
 private:
     void resolveRoomId(const QString &username);
@@ -74,6 +78,7 @@ private:
 
     UserListModel m_users;
     LiveChatModel m_liveChat;
+    LiveGiftModel m_liveGifts;
     ShowroomApi *m_api;
     QQmlEngine *m_qmlEngine = nullptr;
     ShowroomAuth *m_auth = nullptr;

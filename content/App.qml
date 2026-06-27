@@ -917,8 +917,6 @@ ApplicationWindow {
 
                         readonly property string messageKind: model.kind
                         readonly property color accentColor: {
-                            if (messageKind === "gift")
-                                return "#FFB74D"
                             if (messageKind === "telop")
                                 return theme.accent
                             if (messageKind === "system")
@@ -960,6 +958,139 @@ ApplicationWindow {
                         color: theme.textMuted
                         font.pixelSize: 13
                         visible: chatList.count === 0
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 1
+                    color: theme.border
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: qsTr("Gifts")
+                        color: theme.textPrimary
+                        font.pixelSize: 13
+                        font.weight: Font.Medium
+                    }
+
+                    Rectangle {
+                        width: 8
+                        height: 8
+                        radius: 4
+                        color: ShowroomController.liveGifts.count > 0 ? "#FFB74D" : theme.textMuted
+                    }
+                }
+
+                Timer {
+                    id: giftScrollTimer
+                    interval: 50
+                    repeat: false
+                    onTriggered: {
+                        if (giftList.count > 0 && giftList.autoScrollEnabled)
+                            giftList.positionViewAtEnd()
+                    }
+                }
+
+                ListView {
+                    id: giftList
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: Constants.giftPanelHeight
+                    spacing: 4
+                    clip: true
+                    model: ShowroomController.liveGifts
+                    boundsBehavior: Flickable.StopAtBounds
+                    reuseItems: true
+                    cacheBuffer: height
+
+                    property bool autoScrollEnabled: true
+
+                    function syncAutoScrollFromPosition() {
+                        autoScrollEnabled = atYEnd
+                    }
+
+                    onCountChanged: {
+                        if (count === 0)
+                            autoScrollEnabled = true
+                    }
+
+                    onMovementEnded: syncAutoScrollFromPosition()
+
+                    onFlickingChanged: {
+                        if (!flicking && !moving)
+                            syncAutoScrollFromPosition()
+                    }
+
+                    WheelHandler {
+                        blocking: false
+                        onWheel: (event) => {
+                            if (event.angleDelta.y > 0)
+                                giftList.autoScrollEnabled = false
+                            else if (event.angleDelta.y < 0)
+                                Qt.callLater(giftList.syncAutoScrollFromPosition)
+                        }
+                    }
+
+                    Connections {
+                        target: ShowroomController.liveGifts
+                        function onMessagesFlushed() {
+                            if (giftList.autoScrollEnabled)
+                                giftScrollTimer.restart()
+                        }
+                    }
+
+                    ScrollBar.vertical: ScrollBar {
+                        id: giftScrollBar
+                        policy: ScrollBar.AsNeeded
+
+                        onPressedChanged: {
+                            if (!pressed)
+                                giftList.syncAutoScrollFromPosition()
+                        }
+                    }
+
+                    delegate: Item {
+                        width: giftList.width
+                        height: giftAccountText.implicitHeight + giftBodyText.implicitHeight + 1
+
+                        Text {
+                            id: giftAccountText
+                            width: parent.width
+                            visible: model.account.length > 0
+                            text: model.account
+                            color: "#FFB74D"
+                            font.pixelSize: 11
+                            font.weight: Font.Medium
+                            maximumLineCount: 1
+                            elide: Text.ElideRight
+                        }
+
+                        Text {
+                            id: giftBodyText
+                            width: parent.width
+                            y: giftAccountText.visible ? giftAccountText.implicitHeight + 1 : 0
+                            text: model.text
+                            color: theme.textPrimary
+                            font.pixelSize: 12
+                            maximumLineCount: 1
+                            elide: Text.ElideRight
+                        }
+                    }
+
+                    Label {
+                        anchors.centerIn: parent
+                        width: parent.width - 16
+                        horizontalAlignment: Text.AlignHCenter
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Gifts appear here")
+                        color: theme.textMuted
+                        font.pixelSize: 12
+                        visible: giftList.count === 0
                     }
                 }
             }

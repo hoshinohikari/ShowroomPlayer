@@ -26,6 +26,8 @@ qt6_add_qml_module(ShowroomPlayer
         ShowroomLiveSocket.h
         LiveChatModel.cpp
         LiveChatModel.h
+        LiveGiftModel.cpp
+        LiveGiftModel.h
         UserListModel.cpp
         UserListModel.h
 )
