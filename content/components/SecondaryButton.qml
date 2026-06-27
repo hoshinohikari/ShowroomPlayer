@@ -1,0 +1,27 @@
+import QtQuick
+import QtQuick.Controls.Basic
+import content
+
+Button {
+    padding: 10
+    font.pixelSize: 14
+    font.weight: Font.Medium
+
+    contentItem: Text {
+        text: parent.text
+        font: parent.font
+        color: parent.enabled ? Theme.textSecondary : Theme.textMuted
+        horizontalAlignment: Text.AlignHCenter
+        verticalAlignment: Text.AlignVCenter
+    }
+
+    background: Rectangle {
+        radius: Theme.radiusSm
+        color: !parent.enabled ? Theme.surface
+               : parent.pressed ? Theme.surfaceHover
+               : parent.hovered ? Theme.surfaceHover
+               : Theme.input
+        border.color: Theme.border
+        border.width: 1
+    }
+}
