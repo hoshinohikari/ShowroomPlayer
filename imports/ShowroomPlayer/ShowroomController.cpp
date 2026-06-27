@@ -155,6 +155,21 @@ ShowroomController::ShowroomController(QObject *parent)
         m_liveGifts.clearMessages();
         fetchGiftList(roomId);
     });
+    connect(m_liveSocket, &ShowroomLiveSocket::reconnected, this, [this](qint64 roomId) {
+        Q_UNUSED(roomId);
+        qCInfo(lcShowroomController) << "Live chat socket resumed, keeping session state";
+    });
+    connect(m_liveSocket, &ShowroomLiveSocket::sessionEnded, this, [this](qint64 roomId) {
+        qCInfo(lcShowroomController) << "Live session ended for room" << roomId;
+        for (int row = 0; row < m_users.rowCount(); ++row) {
+            if (m_users.userAt(row).roomId == roomId)
+                m_users.setLive(row, false);
+        }
+
+        m_liveChat.clearMessages();
+        m_liveGifts.clearMessages();
+        m_liveGifts.clearGiftCatalog();
+    });
     qCInfo(lcShowroomController) << "Monitor ready, waiting for session check before polling";
     QTimer::singleShot(0, this, &ShowroomController::wireAuth);
 }
