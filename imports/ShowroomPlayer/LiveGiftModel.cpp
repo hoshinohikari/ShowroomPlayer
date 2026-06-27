@@ -18,6 +18,30 @@ int readJsonInt(const QJsonValue &value)
     return 0;
 }
 
+qint64 readJsonInt64(const QJsonValue &value)
+{
+    if (value.isDouble())
+        return static_cast<qint64>(value.toDouble());
+    if (value.isString()) {
+        bool ok = false;
+        const qint64 parsed = value.toString().toLongLong(&ok);
+        if (ok)
+            return parsed;
+    }
+    return 0;
+}
+
+qint64 readUserId(const QJsonObject &payload)
+{
+    for (const QLatin1StringView key :
+         {QLatin1StringView("ui"), QLatin1StringView("user_id"), QLatin1StringView("uid")}) {
+        const qint64 userId = readJsonInt64(payload.value(key));
+        if (userId > 0)
+            return userId;
+    }
+    return 0;
+}
+
 qint64 parseTimestamp(const QJsonObject &payload)
 {
     const QJsonValue value = payload.value(QLatin1String("created_at"));
@@ -192,6 +216,7 @@ bool LiveGiftModel::parseGiftPayload(const QJsonObject &payload, LiveGiftEntry *
         return false;
 
     entry->account = payload.value(QLatin1String("ac")).toString().trimmed();
+    entry->userId = readUserId(payload);
     entry->giftId = readJsonInt(payload.value(QLatin1String("g")));
     entry->giftCount = readJsonInt(payload.value(QLatin1String("n")));
     entry->timestamp = parseTimestamp(payload);
@@ -201,16 +226,115 @@ bool LiveGiftModel::parseGiftPayload(const QJsonObject &payload, LiveGiftEntry *
     return entry->giftId > 0;
 }
 
+QStringList LiveGiftModel::makeGiftDedupKeys(const QString &account, qint64 userId, int giftId,
+                                             qint64 timestamp, int count) const
+{
+    QStringList keys;
+    if (userId > 0) {
+        keys.append(QStringLiteral("uid:%1|g:%2|t:%3|n:%4")
+                        .arg(userId)
+                        .arg(giftId)
+                        .arg(timestamp)
+                        .arg(count));
+    }
+
+    const QString normalizedAccount = account.trimmed().toLower();
+    if (!normalizedAccount.isEmpty()) {
+        keys.append(QStringLiteral("ac:%1|g:%2|t:%3|n:%4")
+                        .arg(normalizedAccount)
+                        .arg(giftId)
+                        .arg(timestamp)
+                        .arg(count));
+    }
+
+    return keys;
+}
+
+bool LiveGiftModel::isDuplicateGift(const QStringList &dedupKeys) const
+{
+    for (const QString &key : dedupKeys) {
+        if (m_processedGiftKeys.contains(key))
+            return true;
+    }
+    return false;
+}
+
+void LiveGiftModel::markGiftProcessed(const QStringList &dedupKeys)
+{
+    for (const QString &key : dedupKeys)
+        m_processedGiftKeys.insert(key);
+}
+
+int LiveGiftModel::applyContribution(const QString &account, int giftId, int count,
+                                     qint64 timestamp, qint64 userId)
+{
+    if (giftId <= 0 || count < 1)
+        return 0;
+    if (account.isEmpty() && userId <= 0)
+        return 0;
+
+    const QStringList dedupKeys = makeGiftDedupKeys(account, userId, giftId, timestamp, count);
+    if (isDuplicateGift(dedupKeys)) {
+        qCDebug(lcShowroomLive) << "Skip duplicate gift contribution"
+                                << "gift:" << giftId << "count:" << count << "user:" << userId
+                                << account;
+        return 0;
+    }
+
+    const GiftCatalogEntry catalog = catalogForGift(giftId);
+    const int pt = ShowroomGiftPt::calculateGiftPt(catalog, count, m_eventActive);
+    markGiftProcessed(dedupKeys);
+    if (pt > 0 && !account.isEmpty())
+        m_contributors.addPoints(account, pt);
+    else if (pt > 0 && userId > 0)
+        m_contributors.addPoints(QStringLiteral("#%1").arg(userId), pt);
+    return pt;
+}
+
+void LiveGiftModel::ingestGiftLog(const QJsonObject &giftLogRoot)
+{
+    const QJsonArray logs = giftLogRoot.value(QLatin1String("gift_log")).toArray();
+    if (logs.isEmpty()) {
+        qCInfo(lcShowroomLive) << "Gift log is empty";
+        return;
+    }
+
+    int imported = 0;
+    int totalPt = 0;
+    for (const QJsonValue &logValue : logs) {
+        if (!logValue.isObject())
+            continue;
+
+        const QJsonObject item = logValue.toObject();
+        const QString account = item.value(QLatin1String("name")).toString().trimmed();
+        const qint64 userId = readJsonInt64(item.value(QLatin1String("user_id")));
+        const int giftId = readJsonInt(item.value(QLatin1String("gift_id")));
+        int count = readJsonInt(item.value(QLatin1String("num")));
+        if (count < 1)
+            count = 1;
+
+        qint64 timestamp = readJsonInt64(item.value(QLatin1String("created_at")));
+
+        const int pt = applyContribution(account, giftId, count, timestamp, userId);
+        if (pt <= 0)
+            continue;
+
+        imported++;
+        totalPt += pt;
+    }
+
+    qCInfo(lcShowroomLive) << "Gift log imported:" << imported << "entries," << totalPt << "pt";
+    refreshGiftRows();
+}
+
 int LiveGiftModel::recordGiftContribution(LiveGiftEntry *entry)
 {
     if (!entry)
         return 0;
 
-    const GiftCatalogEntry catalog = catalogForGift(entry->giftId);
-    const int pt = ShowroomGiftPt::calculateGiftPt(catalog, entry->giftCount, m_eventActive);
+    const int pt = applyContribution(entry->account, entry->giftId, entry->giftCount,
+                                     entry->timestamp, entry->userId);
     entry->ptEarned = pt;
-    if (pt > 0 && !entry->account.isEmpty())
-        m_contributors.addPoints(entry->account, pt);
     return pt;
 }
 
@@ -306,6 +430,7 @@ void LiveGiftModel::clearMessages()
 {
     m_flushTimer->stop();
     m_pending.clear();
+    m_processedGiftKeys.clear();
     m_contributors.clear();
 
     if (m_entries.isEmpty())

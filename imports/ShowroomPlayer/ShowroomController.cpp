@@ -154,7 +154,6 @@ ShowroomController::ShowroomController(QObject *parent)
         m_liveChat.clearMessages();
         m_liveGifts.clearMessages();
         fetchGiftList(roomId);
-        fetchEventStatus(roomId);
     });
     qCInfo(lcShowroomController) << "Monitor ready, waiting for session check before polling";
     QTimer::singleShot(0, this, &ShowroomController::wireAuth);
@@ -580,12 +579,6 @@ void ShowroomController::fetchGiftList(qint64 roomId)
 
     m_api->get(QStringLiteral("api/live/gift_list"), query,
                [this, roomId](QNetworkReply *reply) {
-                   if (reply->error() != QNetworkReply::NoError) {
-                       qCWarning(lcShowroomController) << "Gift list fetch failed for room"
-                                                         << roomId << ":" << reply->errorString();
-                       return;
-                   }
-
                    if (m_selectedIndex < 0)
                        return;
 
@@ -596,9 +589,17 @@ void ShowroomController::fetchGiftList(qint64 roomId)
                        return;
                    }
 
+                   if (reply->error() != QNetworkReply::NoError) {
+                       qCWarning(lcShowroomController) << "Gift list fetch failed for room"
+                                                         << roomId << ":" << reply->errorString();
+                       fetchEventStatus(roomId);
+                       return;
+                   }
+
                    const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
                    if (!doc.isObject()) {
                        qCWarning(lcShowroomController) << "Gift list response is not JSON object";
+                       fetchEventStatus(roomId);
                        return;
                    }
 
@@ -612,6 +613,8 @@ void ShowroomController::fetchGiftList(qint64 roomId)
                                                        << firstGift.value(QLatin1String("gift_id")).toVariant()
                                                        << firstGift.value(QLatin1String("gift_name")).toString();
                    }
+
+                   fetchEventStatus(roomId);
                });
 }
 
@@ -622,13 +625,6 @@ void ShowroomController::fetchEventStatus(qint64 roomId)
 
     m_api->get(QStringLiteral("api/room/event_and_support"), query,
                [this, roomId](QNetworkReply *reply) {
-                   if (reply->error() != QNetworkReply::NoError) {
-                       qCDebug(lcShowroomController) << "Event status fetch failed for room"
-                                                     << roomId << ":" << reply->errorString();
-                       m_liveGifts.setEventActive(false);
-                       return;
-                   }
-
                    if (m_selectedIndex < 0)
                        return;
 
@@ -636,9 +632,18 @@ void ShowroomController::fetchEventStatus(qint64 roomId)
                    if (selected.roomId != roomId)
                        return;
 
+                   if (reply->error() != QNetworkReply::NoError) {
+                       qCDebug(lcShowroomController) << "Event status fetch failed for room"
+                                                     << roomId << ":" << reply->errorString();
+                       m_liveGifts.setEventActive(false);
+                       fetchGiftLog(roomId);
+                       return;
+                   }
+
                    const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
                    if (!doc.isObject()) {
                        m_liveGifts.setEventActive(false);
+                       fetchGiftLog(roomId);
                        return;
                    }
 
@@ -646,6 +651,40 @@ void ShowroomController::fetchEventStatus(qint64 roomId)
                    m_liveGifts.setEventActive(eventActive);
                    qCInfo(lcShowroomController) << "Room" << roomId << "event bonus"
                                                 << (eventActive ? "active" : "inactive");
+                   fetchGiftLog(roomId);
+               });
+}
+
+void ShowroomController::fetchGiftLog(qint64 roomId)
+{
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("room_id"), QString::number(roomId));
+
+    m_api->get(QStringLiteral("api/live/gift_log"), query,
+               [this, roomId](QNetworkReply *reply) {
+                   if (reply->error() != QNetworkReply::NoError) {
+                       qCWarning(lcShowroomController) << "Gift log fetch failed for room"
+                                                       << roomId << ":" << reply->errorString();
+                       return;
+                   }
+
+                   if (m_selectedIndex < 0)
+                       return;
+
+                   const MonitoredUser selected = m_users.userAt(m_selectedIndex);
+                   if (selected.roomId != roomId) {
+                       qCDebug(lcShowroomController)
+                           << "Ignore gift log: selection changed away from room" << roomId;
+                       return;
+                   }
+
+                   const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+                   if (!doc.isObject()) {
+                       qCWarning(lcShowroomController) << "Gift log response is not JSON object";
+                       return;
+                   }
+
+                   m_liveGifts.ingestGiftLog(doc.object());
                });
 }
 

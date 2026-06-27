@@ -6,7 +6,9 @@
 #include <QAbstractListModel>
 #include <QHash>
 #include <QJsonObject>
+#include <QSet>
 #include <QString>
+#include <QStringList>
 #include <QTimer>
 #include <QVector>
 
@@ -16,6 +18,7 @@ struct LiveGiftEntry
     int giftId = 0;
     int giftCount = 0;
     int ptEarned = 0;
+    qint64 userId = 0;
     qint64 timestamp = 0;
 };
 
@@ -49,6 +52,7 @@ public:
 public slots:
     void ingestPayload(const QJsonObject &payload);
     void ingestGiftList(const QJsonObject &giftList);
+    void ingestGiftLog(const QJsonObject &giftLogRoot);
     void setEventActive(bool active);
     void clearMessages();
     void clearGiftCatalog();
@@ -67,6 +71,12 @@ private:
     void trimExcessBeforeInsert(int incomingCount);
     bool parseGiftPayload(const QJsonObject &payload, LiveGiftEntry *entry) const;
     int recordGiftContribution(LiveGiftEntry *entry);
+    int applyContribution(const QString &account, int giftId, int count, qint64 timestamp,
+                        qint64 userId = 0);
+    QStringList makeGiftDedupKeys(const QString &account, qint64 userId, int giftId,
+                                  qint64 timestamp, int count) const;
+    bool isDuplicateGift(const QStringList &dedupKeys) const;
+    void markGiftProcessed(const QStringList &dedupKeys);
     GiftCatalogEntry catalogForGift(int giftId) const;
     QString giftNameForId(int giftId) const;
     QString giftTextForEntry(const LiveGiftEntry &entry) const;
@@ -75,6 +85,7 @@ private:
     QList<LiveGiftEntry> m_entries;
     QVector<LiveGiftEntry> m_pending;
     QHash<int, GiftCatalogEntry> m_giftCatalog;
+    QSet<QString> m_processedGiftKeys;
     GiftContributorModel m_contributors;
     QTimer *m_flushTimer = nullptr;
     bool m_eventActive = false;

@@ -71,6 +71,7 @@ private:
     void stopLiveSocket();
     void fetchGiftList(qint64 roomId);
     void fetchEventStatus(qint64 roomId);
+    void fetchGiftLog(qint64 roomId);
     void finishPoll(const QSet<qint64> &liveRoomIds);
     void ensureAuth();
     void wireAuth();
