@@ -17,7 +17,7 @@ set(QML_IMPORT_PATH
     FORCE
 )
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick OpenGL Network QuickControls2)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick OpenGL Network QuickControls2 WebSockets)
 
 qt_policy(SET QTP0005 NEW)
 qt_policy(SET QTP0004 NEW)

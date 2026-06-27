@@ -192,6 +192,11 @@ void ShowroomApi::setSrIdCookie(const QString &srId)
     qCDebug(lcShowroomApi) << "sr_id cookie injected";
 }
 
+QList<QNetworkCookie> ShowroomApi::cookiesForUrl(const QUrl &url) const
+{
+    return m_cookieJar->cookiesForUrl(url);
+}
+
 void ShowroomApi::getAccount(const std::function<void(QNetworkReply *)> &callback)
 {
     const QUrl url = buildUrl(QStringLiteral("api/account/"));

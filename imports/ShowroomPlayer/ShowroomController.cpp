@@ -1,6 +1,7 @@
 #include "ShowroomController.h"
 #include "ShowroomApi.h"
 #include "ShowroomAuth.h"
+#include "ShowroomLiveSocket.h"
 #include "ShowroomLog.h"
 
 #include <QDateTime>
@@ -120,6 +121,11 @@ ShowroomController::ShowroomController(QObject *parent)
 {
     m_pollTimer->setInterval(m_pollIntervalMs);
     connect(m_pollTimer, &QTimer::timeout, this, &ShowroomController::pollOnlineRooms);
+    m_liveSocket = new ShowroomLiveSocket(m_api, this);
+    connect(m_liveSocket, &ShowroomLiveSocket::commentReceived, &m_liveChat,
+            &LiveChatModel::ingestPayload);
+    connect(m_liveSocket, &ShowroomLiveSocket::disconnected, &m_liveChat, &LiveChatModel::clear);
+    connect(m_liveSocket, &ShowroomLiveSocket::connected, &m_liveChat, &LiveChatModel::clear);
     qCInfo(lcShowroomController) << "Monitor ready, waiting for session check before polling";
     QTimer::singleShot(0, this, &ShowroomController::wireAuth);
 }
@@ -234,6 +240,8 @@ void ShowroomController::setSelectedIndex(int index)
 {
     if (m_selectedIndex == index)
         return;
+
+    stopLiveSocket();
 
     const QString previous = m_selectedIndex >= 0 && m_selectedIndex < m_users.rowCount()
                                  ? m_users.userAt(m_selectedIndex).username
@@ -491,6 +499,10 @@ void ShowroomController::refreshLiveStatus(const QSet<qint64> &liveRoomIds)
     if (selectedUserBecameLive) {
         qCInfo(lcShowroomController) << "Selected user went live, starting playback";
         playSelectedUserIfLive();
+    } else if (m_selectedIndex >= 0 && m_selectedIndex < m_users.rowCount()) {
+        const MonitoredUser selected = m_users.userAt(m_selectedIndex);
+        if (!selected.isLive)
+            stopLiveSocket();
     }
 }
 
@@ -513,6 +525,56 @@ void ShowroomController::playSelectedUserIfLive()
     }
 
     fetchStreamUrl(user.roomId, user.username);
+}
+
+void ShowroomController::startLiveSocket(qint64 roomId)
+{
+    if (!m_liveSocket)
+        return;
+
+    fetchGiftList(roomId);
+    m_liveSocket->connectToRoom(roomId);
+}
+
+void ShowroomController::fetchGiftList(qint64 roomId)
+{
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("room_id"), QString::number(roomId));
+
+    m_api->get(QStringLiteral("api/live/gift_list"), query,
+               [this, roomId](QNetworkReply *reply) {
+                   if (reply->error() != QNetworkReply::NoError) {
+                       qCWarning(lcShowroomController) << "Gift list fetch failed for room"
+                                                         << roomId << ":" << reply->errorString();
+                       return;
+                   }
+
+                   if (m_selectedIndex < 0)
+                       return;
+
+                   const MonitoredUser selected = m_users.userAt(m_selectedIndex);
+                   if (selected.roomId != roomId) {
+                       qCDebug(lcShowroomController)
+                           << "Ignore gift list: selection changed away from room" << roomId;
+                       return;
+                   }
+
+                   const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+                   if (!doc.isObject()) {
+                       qCWarning(lcShowroomController) << "Gift list response is not JSON object";
+                       return;
+                   }
+
+                   m_liveChat.ingestGiftList(doc.object());
+               });
+}
+
+void ShowroomController::stopLiveSocket()
+{
+    if (!m_liveSocket)
+        return;
+
+    m_liveSocket->disconnectFromRoom();
 }
 
 void ShowroomController::fetchStreamUrl(qint64 roomId, const QString &username)
@@ -565,5 +627,6 @@ void ShowroomController::fetchStreamUrl(qint64 roomId, const QString &username)
                                                 << "quality:" << selectedQuality
                                                 << "url:" << streamUrl;
                    emit playStream(streamUrl);
+                   startLiveSocket(roomId);
                });
 }

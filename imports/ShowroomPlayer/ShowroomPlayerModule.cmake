@@ -22,6 +22,10 @@ qt6_add_qml_module(ShowroomPlayer
         ShowroomAuth.h
         ShowroomController.cpp
         ShowroomController.h
+        ShowroomLiveSocket.cpp
+        ShowroomLiveSocket.h
+        LiveChatModel.cpp
+        LiveChatModel.h
         UserListModel.cpp
         UserListModel.h
 )
@@ -34,6 +38,7 @@ target_link_libraries(ShowroomPlayer PRIVATE
     Qt6::Quick
     Qt6::OpenGL
     Qt6::Network
+    Qt6::WebSockets
     libmpv::libmpv
 )
 

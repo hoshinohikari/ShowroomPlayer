@@ -240,7 +240,7 @@ ApplicationWindow {
         spacing: 16
 
         Rectangle {
-            Layout.preferredWidth: 300
+            Layout.preferredWidth: Constants.sidebarWidth
             Layout.fillHeight: true
             radius: theme.radius
             color: theme.surface
@@ -795,6 +795,123 @@ ApplicationWindow {
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                     elide: Text.ElideMiddle
+                }
+            }
+        }
+
+        Rectangle {
+            id: chatPanel
+            Layout.preferredWidth: Constants.chatPanelWidth
+            Layout.fillHeight: true
+            radius: theme.radius
+            color: theme.surface
+            border.color: theme.border
+            border.width: 1
+            clip: true
+
+            ColumnLayout {
+                anchors.fill: parent
+                anchors.margins: 12
+                spacing: 10
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 8
+
+                    Label {
+                        Layout.fillWidth: true
+                        text: qsTr("Live chat")
+                        color: theme.textPrimary
+                        font.pixelSize: 14
+                        font.weight: Font.Medium
+                    }
+
+                    Rectangle {
+                        width: 8
+                        height: 8
+                        radius: 4
+                        color: ShowroomController.liveChat.count > 0 ? theme.live : theme.textMuted
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    height: 1
+                    color: theme.border
+                }
+
+                ListView {
+                    id: chatList
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    spacing: 8
+                    clip: true
+                    model: ShowroomController.liveChat
+                    boundsBehavior: Flickable.StopAtBounds
+
+                    Connections {
+                        target: ShowroomController.liveChat
+                        function onMessageAppended() {
+                            if (chatList.count > 0)
+                                chatList.positionViewAtEnd()
+                        }
+                    }
+
+                    ScrollBar.vertical: ScrollBar {
+                        policy: ScrollBar.AsNeeded
+                    }
+
+                    delegate: Item {
+                        id: chatRow
+                        width: chatList.width
+                        height: chatBody.implicitHeight
+
+                        readonly property string messageKind: model.kind
+                        readonly property color accentColor: {
+                            if (messageKind === "gift")
+                                return "#FFB74D"
+                            if (messageKind === "telop")
+                                return theme.accent
+                            if (messageKind === "system")
+                                return theme.textMuted
+                            return theme.liveSoft
+                        }
+
+                        Column {
+                            id: chatBody
+                            width: parent.width
+                            spacing: 2
+
+                            Label {
+                                width: parent.width
+                                visible: model.account.length > 0
+                                text: model.account
+                                color: chatRow.accentColor
+                                font.pixelSize: 12
+                                font.weight: Font.Medium
+                                elide: Text.ElideRight
+                            }
+
+                            Label {
+                                width: parent.width
+                                text: model.text
+                                color: theme.textPrimary
+                                font.pixelSize: 13
+                                wrapMode: Text.Wrap
+                            }
+                        }
+                    }
+
+                    Label {
+                        anchors.centerIn: parent
+                        width: parent.width - 24
+                        horizontalAlignment: Text.AlignHCenter
+                        wrapMode: Text.WordWrap
+                        text: qsTr("Comments appear here while a live room is playing")
+                        color: theme.textMuted
+                        font.pixelSize: 13
+                        visible: chatList.count === 0
+                    }
                 }
             }
         }

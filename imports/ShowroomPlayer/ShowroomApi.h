@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QHash>
+#include <QNetworkCookie>
 #include <QNetworkRequest>
 #include <QObject>
 #include <QUrlQuery>
@@ -32,6 +33,7 @@ public:
     void clearCookies();
     QString srIdCookie() const;
     void setSrIdCookie(const QString &srId);
+    QList<QNetworkCookie> cookiesForUrl(const QUrl &url) const;
 
     void getAccount(const std::function<void(QNetworkReply *)> &callback);
 

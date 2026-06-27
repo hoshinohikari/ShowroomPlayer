@@ -1,6 +1,7 @@
 #pragma once
 
 #include "UserListModel.h"
+#include "LiveChatModel.h"
 
 #include <QJsonArray>
 #include <QObject>
@@ -12,6 +13,7 @@ class QJSEngine;
 class ShowroomApi;
 class QTimer;
 class ShowroomAuth;
+class ShowroomLiveSocket;
 
 class ShowroomController : public QObject
 {
@@ -19,6 +21,7 @@ class ShowroomController : public QObject
     QML_ELEMENT
     QML_SINGLETON
     Q_PROPERTY(UserListModel *users READ users CONSTANT)
+    Q_PROPERTY(LiveChatModel *liveChat READ liveChat CONSTANT)
     Q_PROPERTY(int selectedIndex READ selectedIndex WRITE setSelectedIndex NOTIFY selectedIndexChanged)
     Q_PROPERTY(int pollIntervalMs READ pollIntervalMs WRITE setPollIntervalMs NOTIFY pollIntervalMsChanged)
 
@@ -29,6 +32,7 @@ public:
     static ShowroomController *create(QQmlEngine *engine, QJSEngine *scriptEngine);
 
     UserListModel *users() { return &m_users; }
+    LiveChatModel *liveChat() { return &m_liveChat; }
     int selectedIndex() const { return m_selectedIndex; }
     int pollIntervalMs() const { return m_pollIntervalMs; }
 
@@ -59,6 +63,9 @@ private:
     void syncFollowerMonitors(const QJsonArray &rooms, QSet<qint64> *liveRoomIds);
     void fetchStreamUrl(qint64 roomId, const QString &username);
     void playSelectedUserIfLive();
+    void startLiveSocket(qint64 roomId);
+    void stopLiveSocket();
+    void fetchGiftList(qint64 roomId);
     void finishPoll(const QSet<qint64> &liveRoomIds);
     void ensureAuth();
     void wireAuth();
@@ -66,6 +73,7 @@ private:
     bool isLoggedIn() const;
 
     UserListModel m_users;
+    LiveChatModel m_liveChat;
     ShowroomApi *m_api;
     QQmlEngine *m_qmlEngine = nullptr;
     ShowroomAuth *m_auth = nullptr;
@@ -77,4 +85,5 @@ private:
     bool m_authWired = false;
     qint64 m_fetchingStreamRoomId = -1;
     QSet<QString> m_dismissedFollowers;
+    ShowroomLiveSocket *m_liveSocket = nullptr;
 };
