@@ -72,6 +72,7 @@ private:
     void fetchGiftList(qint64 roomId);
     void fetchEventStatus(qint64 roomId);
     void fetchGiftLog(qint64 roomId);
+    void bootstrapGiftEventContext(qint64 roomId);
     void finishPoll(const QSet<qint64> &liveRoomIds);
     void ensureAuth();
     void wireAuth();
@@ -86,7 +87,7 @@ private:
     ShowroomAuth *m_auth = nullptr;
     QTimer *m_pollTimer;
     int m_selectedIndex = -1;
-    int m_pollIntervalMs = 20000;
+    int m_pollIntervalMs = 10000;
     bool m_pollInFlight = false;
     bool m_pollPending = false;
     bool m_authWired = false;

@@ -160,7 +160,20 @@ void LiveGiftModel::setEventActive(bool active)
     if (m_eventActive == active)
         return;
     m_eventActive = active;
-    qCInfo(lcShowroomLive) << "Gift event bonus" << (active ? "enabled" : "disabled");
+    qCInfo(lcShowroomLive) << "Gift event bonus from API"
+                           << (active ? "enabled" : "disabled")
+                           << "force:" << m_forceEventActive;
+    emit eventActiveChanged();
+}
+
+void LiveGiftModel::setForceEventActive(bool force)
+{
+    if (m_forceEventActive == force)
+        return;
+
+    m_forceEventActive = force;
+    qCInfo(lcShowroomLive) << "Force event bonus" << (force ? "enabled" : "disabled");
+    emit forceEventActiveChanged();
     emit eventActiveChanged();
 }
 
@@ -282,7 +295,7 @@ int LiveGiftModel::applyContribution(const QString &account, int giftId, int cou
     }
 
     const GiftCatalogEntry catalog = catalogForGift(giftId);
-    const int pt = ShowroomGiftPt::calculateGiftPt(catalog, count, m_eventActive);
+    const int pt = ShowroomGiftPt::calculateGiftPt(catalog, count, eventActive());
     markGiftProcessed(dedupKeys);
     if (pt > 0 && !account.isEmpty())
         m_contributors.addPoints(account, pt);

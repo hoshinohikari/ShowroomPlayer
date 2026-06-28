@@ -210,6 +210,14 @@ Rectangle {
                         font.weight: Font.Medium
                     }
 
+                    CheckBox {
+                        id: forceEventCheck
+                        text: qsTr("Event")
+                        font.pixelSize: 11
+                        checked: ShowroomController.liveGifts.forceEventActive
+                        onToggled: ShowroomController.liveGifts.forceEventActive = checked
+                    }
+
                     Rectangle {
                         width: 8
                         height: 8

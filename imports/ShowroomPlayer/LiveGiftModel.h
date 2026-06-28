@@ -27,6 +27,8 @@ class LiveGiftModel : public QAbstractListModel
     Q_OBJECT
     Q_PROPERTY(GiftContributorModel *contributors READ contributors CONSTANT)
     Q_PROPERTY(bool eventActive READ eventActive NOTIFY eventActiveChanged)
+    Q_PROPERTY(bool forceEventActive READ forceEventActive WRITE setForceEventActive
+                   NOTIFY forceEventActiveChanged)
 
 public:
     enum Roles {
@@ -47,7 +49,9 @@ public:
     QHash<int, QByteArray> roleNames() const override;
 
     GiftContributorModel *contributors() { return &m_contributors; }
-    bool eventActive() const { return m_eventActive; }
+    bool eventActive() const { return m_forceEventActive || m_eventActive; }
+    bool forceEventActive() const { return m_forceEventActive; }
+    void setForceEventActive(bool force);
 
 public slots:
     void ingestPayload(const QJsonObject &payload);
@@ -60,6 +64,7 @@ public slots:
 signals:
     void messagesFlushed();
     void eventActiveChanged();
+    void forceEventActiveChanged();
 
 private slots:
     void flushPending();
@@ -89,6 +94,7 @@ private:
     GiftContributorModel m_contributors;
     QTimer *m_flushTimer = nullptr;
     bool m_eventActive = false;
+    bool m_forceEventActive = false;
 
     static constexpr int kMaxEntries = 80;
     static constexpr int kMaxPendingPerFlush = 20;

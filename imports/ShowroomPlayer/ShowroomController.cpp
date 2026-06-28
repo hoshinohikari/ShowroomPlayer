@@ -607,14 +607,14 @@ void ShowroomController::fetchGiftList(qint64 roomId)
                    if (reply->error() != QNetworkReply::NoError) {
                        qCWarning(lcShowroomController) << "Gift list fetch failed for room"
                                                          << roomId << ":" << reply->errorString();
-                       fetchEventStatus(roomId);
+                       bootstrapGiftEventContext(roomId);
                        return;
                    }
 
                    const QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
                    if (!doc.isObject()) {
                        qCWarning(lcShowroomController) << "Gift list response is not JSON object";
-                       fetchEventStatus(roomId);
+                       bootstrapGiftEventContext(roomId);
                        return;
                    }
 
@@ -629,8 +629,20 @@ void ShowroomController::fetchGiftList(qint64 roomId)
                                                        << firstGift.value(QLatin1String("gift_name")).toString();
                    }
 
-                   fetchEventStatus(roomId);
+                   bootstrapGiftEventContext(roomId);
                });
+}
+
+void ShowroomController::bootstrapGiftEventContext(qint64 roomId)
+{
+    if (m_liveGifts.forceEventActive()) {
+        qCInfo(lcShowroomController) << "Skipping event API, force event bonus enabled for room"
+                                     << roomId;
+        fetchGiftLog(roomId);
+        return;
+    }
+
+    fetchEventStatus(roomId);
 }
 
 void ShowroomController::fetchEventStatus(qint64 roomId)
