@@ -1,7 +1,13 @@
 
 cmake_minimum_required(VERSION 3.21.1)
 
-project(ShowroomPlayerApp VERSION 0.1 LANGUAGES CXX)
+project(ShowroomPlayerApp VERSION 1.0.0.0 LANGUAGES CXX)
+
+configure_file(
+    ${CMAKE_CURRENT_SOURCE_DIR}/cmake/version.h.in
+    ${CMAKE_CURRENT_BINARY_DIR}/generated/version.h
+    @ONLY
+)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}" "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
@@ -55,6 +61,7 @@ include(qmlmodules.cmake)
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/imports/ShowroomPlayer
+    ${CMAKE_CURRENT_BINARY_DIR}/generated
 )
 
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
@@ -75,7 +82,7 @@ install(TARGETS ${CMAKE_PROJECT_NAME}
 set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES
     OUTPUT_NAME ShowroomPlayer
     MACOSX_BUNDLE_BUNDLE_VERSION ${PROJECT_VERSION}
-    MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}"
+    MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}"
     MACOSX_BUNDLE TRUE
     WIN32_EXECUTABLE TRUE
 )

@@ -9,6 +9,7 @@
 #include "app_environment.h"
 #include "import_qml_plugins.h"
 #include "ShowroomLog.h"
+#include "version.h"
 
 #include <clocale>
 
@@ -23,13 +24,14 @@ int main(int argc, char *argv[])
     set_qt_environment();
 
     QCoreApplication::setApplicationName(QStringLiteral("ShowroomPlayer"));
+    QCoreApplication::setApplicationVersion(QStringLiteral(SHOWROOM_VERSION_STRING));
 
     QGuiApplication app(argc, argv);
     const QIcon appIcon(QStringLiteral("qrc:/qt/qml/content/icon/icon.ico"));
     app.setWindowIcon(appIcon);
     std::setlocale(LC_NUMERIC, "C");
 
-    qCInfo(lcShowroomApp) << "ShowroomPlayer starting";
+    qCInfo(lcShowroomApp) << "ShowroomPlayer starting, version" << SHOWROOM_VERSION_STRING;
 
     if (const QScreen *screen = app.primaryScreen()) {
         qCInfo(lcShowroomApp) << "Primary screen DPR:" << screen->devicePixelRatio()
