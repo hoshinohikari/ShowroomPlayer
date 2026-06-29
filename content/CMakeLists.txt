@@ -20,4 +20,6 @@ qt6_add_qml_module(showroom_content
         panels/SidebarPanel.qml
         panels/VideoPanel.qml
         panels/ChatPanel.qml
+    RESOURCES
+        icon/icon.ico
 )

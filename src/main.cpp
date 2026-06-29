@@ -4,6 +4,7 @@
 #include <QSGRendererInterface>
 #include <QScreen>
 #include <QCoreApplication>
+#include <QIcon>
 
 #include "app_environment.h"
 #include "import_qml_plugins.h"
@@ -24,6 +25,8 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationName(QStringLiteral("ShowroomPlayer"));
 
     QGuiApplication app(argc, argv);
+    const QIcon appIcon(QStringLiteral("qrc:/qt/qml/content/icon/icon.ico"));
+    app.setWindowIcon(appIcon);
     std::setlocale(LC_NUMERIC, "C");
 
     qCInfo(lcShowroomApp) << "ShowroomPlayer starting";
@@ -52,6 +55,9 @@ int main(int argc, char *argv[])
         qCCritical(lcShowroomApp) << "Failed to load Main QML module";
         return -1;
     }
+
+    if (auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst()))
+        window->setIcon(appIcon);
 
     qCInfo(lcShowroomApp) << "Main window loaded";
     return app.exec();

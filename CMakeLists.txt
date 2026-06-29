@@ -32,6 +32,12 @@ qt_add_executable(${CMAKE_PROJECT_NAME}
     src/main.cpp
 )
 
+if(WIN32)
+    target_sources(${CMAKE_PROJECT_NAME} PRIVATE
+        content/icon/app.rc
+    )
+endif()
+
 qt_add_resources(${CMAKE_PROJECT_NAME} "configuration"
     PREFIX "/"
     FILES
