@@ -27,7 +27,11 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationVersion(QStringLiteral(SHOWROOM_VERSION_STRING));
 
     QGuiApplication app(argc, argv);
+#if defined(Q_OS_MACOS)
+    const QIcon appIcon(QStringLiteral("qrc:/qt/qml/content/icon/icon.icns"));
+#else
     const QIcon appIcon(QStringLiteral("qrc:/qt/qml/content/icon/icon.ico"));
+#endif
     app.setWindowIcon(appIcon);
     std::setlocale(LC_NUMERIC, "C");
 

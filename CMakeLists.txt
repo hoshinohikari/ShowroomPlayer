@@ -1,7 +1,7 @@
 
 cmake_minimum_required(VERSION 3.21.1)
 
-project(ShowroomPlayerApp VERSION 1.0.0.0 LANGUAGES CXX)
+project(ShowroomPlayerApp VERSION 1.1.0.0 LANGUAGES CXX)
 
 configure_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/version.h.in
@@ -42,6 +42,10 @@ if(WIN32)
     target_sources(${CMAKE_PROJECT_NAME} PRIVATE
         content/icon/app.rc
     )
+elseif(APPLE)
+    set(_app_icon "${CMAKE_CURRENT_SOURCE_DIR}/content/icon/icon.icns")
+    target_sources(${CMAKE_PROJECT_NAME} PRIVATE "${_app_icon}")
+    set_source_files_properties("${_app_icon}" PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
 endif()
 
 qt_add_resources(${CMAKE_PROJECT_NAME} "configuration"
@@ -86,6 +90,10 @@ set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES
     MACOSX_BUNDLE TRUE
     WIN32_EXECUTABLE TRUE
 )
+
+if(APPLE)
+    set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES MACOSX_BUNDLE_ICON_FILE icon)
+endif()
 
 libmpv_copy_runtime_dll(${CMAKE_PROJECT_NAME})
 
