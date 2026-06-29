@@ -58,7 +58,9 @@ qint64 parseTimestamp(const QJsonObject &payload)
 
 bool isSameGiftBurst(const LiveGiftEntry &left, const LiveGiftEntry &right)
 {
-    return left.account == right.account && left.giftId == right.giftId && left.giftId > 0;
+    if (left.giftId <= 0 || left.giftId != right.giftId)
+        return false;
+    return left.userId > 0 && left.userId == right.userId;
 }
 
 } // namespace
@@ -99,9 +101,9 @@ QVariant LiveGiftModel::data(const QModelIndex &index, int role) const
     case PtRole:
         return entry.ptEarned;
     case RankRole:
-        return m_contributors.rankForAccount(entry.account);
+        return m_contributors.rankForUserId(entry.userId);
     case TotalPtRole:
-        return m_contributors.totalPtForAccount(entry.account);
+        return m_contributors.totalPtForUserId(entry.userId);
     case TimestampRole:
         return entry.timestamp;
     default:
@@ -239,28 +241,17 @@ bool LiveGiftModel::parseGiftPayload(const QJsonObject &payload, LiveGiftEntry *
     return entry->giftId > 0;
 }
 
-QStringList LiveGiftModel::makeGiftDedupKeys(const QString &account, qint64 userId, int giftId,
-                                             qint64 timestamp, int count) const
+QStringList LiveGiftModel::makeGiftDedupKeys(qint64 userId, int giftId, qint64 timestamp,
+                                             int count) const
 {
-    QStringList keys;
-    if (userId > 0) {
-        keys.append(QStringLiteral("uid:%1|g:%2|t:%3|n:%4")
-                        .arg(userId)
-                        .arg(giftId)
-                        .arg(timestamp)
-                        .arg(count));
-    }
+    if (userId <= 0)
+        return {};
 
-    const QString normalizedAccount = account.trimmed().toLower();
-    if (!normalizedAccount.isEmpty()) {
-        keys.append(QStringLiteral("ac:%1|g:%2|t:%3|n:%4")
-                        .arg(normalizedAccount)
-                        .arg(giftId)
-                        .arg(timestamp)
-                        .arg(count));
-    }
-
-    return keys;
+    return {QStringLiteral("uid:%1|g:%2|t:%3|n:%4")
+                .arg(userId)
+                .arg(giftId)
+                .arg(timestamp)
+                .arg(count)};
 }
 
 bool LiveGiftModel::isDuplicateGift(const QStringList &dedupKeys) const
@@ -281,26 +272,21 @@ void LiveGiftModel::markGiftProcessed(const QStringList &dedupKeys)
 int LiveGiftModel::applyContribution(const QString &account, int giftId, int count,
                                      qint64 timestamp, qint64 userId)
 {
-    if (giftId <= 0 || count < 1)
-        return 0;
-    if (account.isEmpty() && userId <= 0)
+    if (giftId <= 0 || count < 1 || userId <= 0)
         return 0;
 
-    const QStringList dedupKeys = makeGiftDedupKeys(account, userId, giftId, timestamp, count);
+    const QStringList dedupKeys = makeGiftDedupKeys(userId, giftId, timestamp, count);
     if (isDuplicateGift(dedupKeys)) {
         qCDebug(lcShowroomLive) << "Skip duplicate gift contribution"
-                                << "gift:" << giftId << "count:" << count << "user:" << userId
-                                << account;
+                                << "gift:" << giftId << "count:" << count << "user:" << userId;
         return 0;
     }
 
     const GiftCatalogEntry catalog = catalogForGift(giftId);
     const int pt = ShowroomGiftPt::calculateGiftPt(catalog, count, eventActive());
     markGiftProcessed(dedupKeys);
-    if (pt > 0 && !account.isEmpty())
-        m_contributors.addPoints(account, pt);
-    else if (pt > 0 && userId > 0)
-        m_contributors.addPoints(QStringLiteral("#%1").arg(userId), pt);
+    if (pt > 0)
+        m_contributors.addPoints(userId, account, pt);
     return pt;
 }
 

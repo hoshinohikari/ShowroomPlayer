@@ -77,9 +77,8 @@ private:
     bool parseGiftPayload(const QJsonObject &payload, LiveGiftEntry *entry) const;
     int recordGiftContribution(LiveGiftEntry *entry);
     int applyContribution(const QString &account, int giftId, int count, qint64 timestamp,
-                        qint64 userId = 0);
-    QStringList makeGiftDedupKeys(const QString &account, qint64 userId, int giftId,
-                                  qint64 timestamp, int count) const;
+                        qint64 userId);
+    QStringList makeGiftDedupKeys(qint64 userId, int giftId, qint64 timestamp, int count) const;
     bool isDuplicateGift(const QStringList &dedupKeys) const;
     void markGiftProcessed(const QStringList &dedupKeys);
     GiftCatalogEntry catalogForGift(int giftId) const;

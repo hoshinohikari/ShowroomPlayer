@@ -11,6 +11,7 @@ class GiftContributorModel : public QAbstractListModel
 public:
     enum Roles {
         RankRole = Qt::UserRole + 1,
+        UserIdRole,
         AccountRole,
         TotalPtRole,
     };
@@ -21,9 +22,9 @@ public:
     QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const override;
     QHash<int, QByteArray> roleNames() const override;
 
-    void addPoints(const QString &account, int points);
-    int rankForAccount(const QString &account) const;
-    int totalPtForAccount(const QString &account) const;
+    void addPoints(qint64 userId, const QString &displayName, int points);
+    int rankForUserId(qint64 userId) const;
+    int totalPtForUserId(qint64 userId) const;
     void clear();
 
 signals:
@@ -31,13 +32,16 @@ signals:
 
 private:
     void rebuildRanking();
+    QString displayNameFor(qint64 userId) const;
 
     struct ContributorRow
     {
+        qint64 userId = 0;
         QString account;
         int totalPt = 0;
     };
 
-    QHash<QString, int> m_totals;
+    QHash<qint64, int> m_totals;
+    QHash<qint64, QString> m_displayNames;
     QList<ContributorRow> m_rows;
 };
