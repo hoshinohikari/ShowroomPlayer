@@ -1,6 +1,10 @@
 
 cmake_minimum_required(VERSION 3.21.1)
 
+if(APPLE AND NOT CMAKE_OSX_DEPLOYMENT_TARGET)
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "12.0" CACHE STRING "Minimum macOS version" FORCE)
+endif()
+
 project(ShowroomPlayerApp VERSION 1.1.0.0 LANGUAGES CXX)
 
 configure_file(
@@ -105,3 +109,20 @@ qt_generate_deploy_qml_app_script(
     DEPLOY_USER_QML_MODULES_ON_UNSUPPORTED_PLATFORM
 )
 install(SCRIPT ${deploy_script})
+
+if(APPLE)
+    add_custom_command(
+        TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/content/icon/icon.icns"
+            "$<TARGET_BUNDLE_CONTENT_DIR:${CMAKE_PROJECT_NAME}>/Resources/icon.icns"
+        COMMENT "Ensure app icon remains in bundle after Qt deploy"
+    )
+    add_custom_command(
+        TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND}
+            -D "BUNDLE_DIR=$<TARGET_BUNDLE_DIR:${CMAKE_PROJECT_NAME}>"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/finalize_macos_bundle.cmake"
+        COMMENT "Repair and re-sign macOS app bundle"
+    )
+endif()

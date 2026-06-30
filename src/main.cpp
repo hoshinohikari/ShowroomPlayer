@@ -4,6 +4,7 @@
 #include <QSGRendererInterface>
 #include <QScreen>
 #include <QCoreApplication>
+#include <QDir>
 #include <QIcon>
 
 #include "app_environment.h"
@@ -12,6 +13,22 @@
 #include "version.h"
 
 #include <clocale>
+
+namespace {
+
+QIcon loadAppIcon()
+{
+#if defined(Q_OS_MACOS)
+    const QString iconPath =
+        QDir(QCoreApplication::applicationDirPath()).filePath(QStringLiteral("../Resources/icon.icns"));
+    const QIcon bundleIcon(iconPath);
+    if (!bundleIcon.isNull())
+        return bundleIcon;
+#endif
+    return QIcon(QStringLiteral("qrc:/qt/qml/content/icon/icon.ico"));
+}
+
+} // namespace
 
 int main(int argc, char *argv[])
 {
@@ -27,12 +44,9 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationVersion(QStringLiteral(SHOWROOM_VERSION_STRING));
 
     QGuiApplication app(argc, argv);
-#if defined(Q_OS_MACOS)
-    const QIcon appIcon(QStringLiteral("qrc:/qt/qml/content/icon/icon.icns"));
-#else
-    const QIcon appIcon(QStringLiteral("qrc:/qt/qml/content/icon/icon.ico"));
-#endif
-    app.setWindowIcon(appIcon);
+    const QIcon appIcon = loadAppIcon();
+    if (!appIcon.isNull())
+        app.setWindowIcon(appIcon);
     std::setlocale(LC_NUMERIC, "C");
 
     qCInfo(lcShowroomApp) << "ShowroomPlayer starting, version" << SHOWROOM_VERSION_STRING;
@@ -62,8 +76,10 @@ int main(int argc, char *argv[])
         return -1;
     }
 
-    if (auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst()))
-        window->setIcon(appIcon);
+    if (auto *window = qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst())) {
+        if (!appIcon.isNull())
+            window->setIcon(appIcon);
+    }
 
     qCInfo(lcShowroomApp) << "Main window loaded";
     return app.exec();

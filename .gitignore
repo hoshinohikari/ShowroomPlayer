@@ -10,6 +10,7 @@ build/
 CMakeUserPresets.json
 .qtcreator/
 libmpv/
+.DS_Store
 
 # --- Qt / Qt Design Studio (auto-generated) ---
 qds.cmake
