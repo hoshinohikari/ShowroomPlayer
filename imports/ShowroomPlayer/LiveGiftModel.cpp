@@ -34,7 +34,8 @@ qint64 readJsonInt64(const QJsonValue &value)
 qint64 readUserId(const QJsonObject &payload)
 {
     for (const QLatin1StringView key :
-         {QLatin1StringView("ui"), QLatin1StringView("user_id"), QLatin1StringView("uid")}) {
+         {QLatin1StringView("u"), QLatin1StringView("ui"), QLatin1StringView("user_id"),
+          QLatin1StringView("uid")}) {
         const qint64 userId = readJsonInt64(payload.value(key));
         if (userId > 0)
             return userId;
@@ -244,7 +245,7 @@ bool LiveGiftModel::parseGiftPayload(const QJsonObject &payload, LiveGiftEntry *
 QStringList LiveGiftModel::makeGiftDedupKeys(qint64 userId, int giftId, qint64 timestamp,
                                              int count) const
 {
-    if (userId <= 0)
+    if (userId <= 0 || timestamp <= 0)
         return {};
 
     return {QStringLiteral("uid:%1|g:%2|t:%3|n:%4")

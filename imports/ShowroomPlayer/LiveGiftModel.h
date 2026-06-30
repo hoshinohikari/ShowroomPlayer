@@ -93,7 +93,7 @@ private:
     GiftContributorModel m_contributors;
     QTimer *m_flushTimer = nullptr;
     bool m_eventActive = false;
-    bool m_forceEventActive = false;
+    bool m_forceEventActive = true;
 
     static constexpr int kMaxEntries = 80;
     static constexpr int kMaxPendingPerFlush = 20;

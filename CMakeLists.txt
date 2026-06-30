@@ -5,7 +5,7 @@ if(APPLE AND NOT CMAKE_OSX_DEPLOYMENT_TARGET)
     set(CMAKE_OSX_DEPLOYMENT_TARGET "12.0" CACHE STRING "Minimum macOS version" FORCE)
 endif()
 
-project(ShowroomPlayerApp VERSION 1.1.0.0 LANGUAGES CXX)
+project(ShowroomPlayerApp VERSION 1.1.0.1 LANGUAGES CXX)
 
 configure_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/version.h.in
