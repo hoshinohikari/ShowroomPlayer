@@ -42,10 +42,10 @@ target_include_directories(ShowroomPlayer PRIVATE
 
 target_link_libraries(ShowroomPlayer PRIVATE
     Qt6::Quick
-    Qt6::OpenGL
+    Qt6::Multimedia
+    Qt6::MultimediaQuickPrivate
     Qt6::Network
     Qt6::WebSockets
-    libmpv::libmpv
 )
 
 add_custom_command(TARGET ShowroomPlayer POST_BUILD

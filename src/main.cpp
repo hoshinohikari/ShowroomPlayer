@@ -6,6 +6,9 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QIcon>
+#if !defined(Q_OS_MACOS)
+#include <QSurfaceFormat>
+#endif
 
 #include "app_environment.h"
 #include "import_qml_plugins.h"
@@ -15,6 +18,20 @@
 #include <clocale>
 
 namespace {
+
+#if !defined(Q_OS_MACOS)
+
+void configureOpenGLSurfaceFormat()
+{
+    QSurfaceFormat fmt;
+    fmt.setVersion(3, 2);
+    fmt.setProfile(QSurfaceFormat::CoreProfile);
+    fmt.setDepthBufferSize(24);
+    fmt.setStencilBufferSize(8);
+    QSurfaceFormat::setDefaultFormat(fmt);
+}
+
+#endif
 
 QIcon loadAppIcon()
 {
@@ -35,8 +52,13 @@ int main(int argc, char *argv[])
     QGuiApplication::setHighDpiScaleFactorRoundingPolicy(
         Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
 
-    QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
     QQuickWindow::setTextRenderType(QQuickWindow::QtTextRendering);
+#if defined(Q_OS_MACOS)
+    QQuickWindow::setGraphicsApi(QSGRendererInterface::Metal);
+#else
+    QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
+    configureOpenGLSurfaceFormat();
+#endif
 
     set_qt_environment();
 

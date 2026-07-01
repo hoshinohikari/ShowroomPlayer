@@ -27,12 +27,11 @@ set(QML_IMPORT_PATH
     FORCE
 )
 
-find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick OpenGL Network QuickControls2 WebSockets)
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick Multimedia Network QuickControls2 WebSockets)
+find_package(Qt6MultimediaQuickPrivate REQUIRED)
 
 qt_policy(SET QTP0005 NEW)
 qt_policy(SET QTP0004 NEW)
-
-include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/Libmpv.cmake)
 
 qt_standard_project_setup(REQUIRES 6.5)
 
@@ -58,13 +57,6 @@ qt_add_resources(${CMAKE_PROJECT_NAME} "configuration"
         qtquickcontrols2.conf
 )
 
-qt6_add_resources(${CMAKE_PROJECT_NAME} MainResource
-    PREFIX "/qt/qml"
-    VERSION 1.0
-    FILES
-        mpv/sub/osd_font.otf
-)
-
 include(qmlmodules.cmake)
 
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
@@ -77,6 +69,8 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
     Qt6::Gui
     Qt6::Quick
     Qt6::Qml
+    Qt6::Multimedia
+    Qt6::MultimediaQuickPrivate
     Qt6::QuickControls2
 )
 
@@ -99,8 +93,6 @@ if(APPLE)
     set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES MACOSX_BUNDLE_ICON_FILE icon)
 endif()
 
-libmpv_copy_runtime_dll(${CMAKE_PROJECT_NAME})
-
 qt_generate_deploy_qml_app_script(
     TARGET ${CMAKE_PROJECT_NAME}
     OUTPUT_SCRIPT deploy_script
@@ -111,6 +103,12 @@ qt_generate_deploy_qml_app_script(
 install(SCRIPT ${deploy_script})
 
 if(APPLE)
+    get_filename_component(_qt_bin_dir "${Qt6_DIR}/../../../bin" ABSOLUTE)
+    add_custom_command(
+        TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
+        COMMAND "${_qt_bin_dir}/macdeployqt" "$<TARGET_BUNDLE_DIR:${CMAKE_PROJECT_NAME}>"
+        COMMENT "Deploy Qt frameworks and multimedia plugins"
+    )
     add_custom_command(
         TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different

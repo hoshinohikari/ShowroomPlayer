@@ -13,13 +13,13 @@
 ![ShowroomPlayer](README/screen.png)
 
 ## What's this?
-A desktop Showroom live viewer based on Qt 6 and libmpv  
+A desktop Showroom live viewer based on Qt 6  
 Monitor multiple rooms, play HLS streams, and follow live chat and gifts in real time
 
 ## Features
 - **Monitor list** — Add Showroom usernames manually; live/offline status updates automatically (default poll interval: 10 seconds)
 - **Follow sync** — After login, live rooms from your follow list are added to the monitor automatically
-- **Video playback** — HLS playback via libmpv, with pause/resume, stop, and catch-up to live edge
+- **Video playback** — HLS playback via Qt Multimedia (FFmpeg backend), with pause/resume, stop, and catch-up to live edge
 - **Live chat** — Comments, telops, and system messages over the room WebSocket
 - **Gifts** — Gift feed, contributor ranking, and optional event mode (×2.5 pt)
 - **Session restore** — Login state is saved locally and restored on next launch

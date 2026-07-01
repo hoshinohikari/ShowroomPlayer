@@ -1,15 +1,15 @@
 #pragma once
 
-#include <QQuickFramebufferObject>
 #include <QString>
+#include <QQuickItem>
 #include <QtQml/qqmlregistration.h>
 
-struct mpv_handle;
-struct mpv_render_context;
+#include <QMediaPlayer>
 
-class MpvRenderer;
+class QAudioOutput;
+class QQuickVideoOutput;
 
-class MpvVideoItem : public QQuickFramebufferObject
+class MpvVideoItem : public QQuickItem
 {
     Q_OBJECT
     QML_NAMED_ELEMENT(MpvVideoItem)
@@ -17,19 +17,16 @@ class MpvVideoItem : public QQuickFramebufferObject
     Q_PROPERTY(bool atLiveEdge READ atLiveEdge NOTIFY atLiveEdgeChanged)
     Q_PROPERTY(bool playing READ playing NOTIFY playingChanged)
 
-    mpv_handle *m_mpv = nullptr;
-    mpv_render_context *m_mpvGl = nullptr;
+    QMediaPlayer *m_player = nullptr;
+    QAudioOutput *m_audioOutput = nullptr;
+    QQuickVideoOutput *m_videoOutput = nullptr;
     bool m_paused = false;
     bool m_atLiveEdge = true;
     bool m_behindLive = false;
     bool m_playing = false;
     QString m_currentUrl;
 
-    friend class MpvRenderer;
-
 public:
-    static void onMpvUpdate(void *ctx);
-
     explicit MpvVideoItem(QQuickItem *parent = nullptr);
     ~MpvVideoItem() override;
 
@@ -37,28 +34,30 @@ public:
     bool atLiveEdge() const { return m_atLiveEdge; }
     bool playing() const { return m_playing; }
 
-    Renderer *createRenderer() const override;
-
 public slots:
     void loadUrl(const QString &url);
     void stopPlayback();
     void togglePause();
     void catchUpToLive();
-    void handleMpvEvents();
 
 signals:
-    void mpvUpdate();
     void pausedChanged();
     void atLiveEdgeChanged();
     void playingChanged();
     void playbackError(const QString &message);
 
+protected:
+    void geometryChange(const QRectF &newGeometry, const QRectF &oldGeometry) override;
+
 private slots:
-    void scheduleUpdate();
+    void onPlaybackStateChanged();
+    void onMediaStatusChanged();
+    void onErrorOccurred(QMediaPlayer::Error error, const QString &errorString);
 
 private:
-    void initializeMpv();
-    void reportInitError(const QString &message);
+    void configurePlayer();
+    void reportError(const QString &message);
     void setPlaying(bool playing);
     void setAtLiveEdge(bool atLiveEdge);
+    void reloadCurrentUrl(bool resumePlayback);
 };
