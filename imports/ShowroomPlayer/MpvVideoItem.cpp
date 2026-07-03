@@ -22,9 +22,21 @@ void ensureFfmpegBackend()
 MpvVideoItem::MpvVideoItem(QQuickItem *parent)
     : QQuickItem(parent)
 {
-    qCDebug(lcShowroomPlayer) << "Creating MpvVideoItem (Qt Multimedia)";
+    qCDebug(lcShowroomPlayer) << "Creating MpvVideoItem (Qt Multimedia, lazy pipeline)";
     ensureFfmpegBackend();
+}
 
+MpvVideoItem::~MpvVideoItem()
+{
+    qCDebug(lcShowroomPlayer) << "Destroying MpvVideoItem";
+}
+
+void MpvVideoItem::ensurePlayer()
+{
+    if (m_player)
+        return;
+
+    qCDebug(lcShowroomPlayer) << "Instantiating Qt Multimedia pipeline on demand";
     m_videoOutput = new QQuickVideoOutput(this);
     m_videoOutput->setFillMode(QQuickVideoOutput::PreserveAspectFit);
     m_videoOutput->setEndOfStreamPolicy(QQuickVideoOutput::KeepLastFrame);
@@ -40,14 +52,35 @@ MpvVideoItem::MpvVideoItem(QQuickItem *parent)
     connect(m_player, &QMediaPlayer::mediaStatusChanged, this, &MpvVideoItem::onMediaStatusChanged);
     connect(m_player, &QMediaPlayer::errorOccurred, this, &MpvVideoItem::onErrorOccurred);
 
-    if (width() > 0 && height() > 0) {
+    if (width() > 0 && height() > 0)
         m_videoOutput->setSize(QSizeF(width(), height()).toSize());
-    }
 }
 
-MpvVideoItem::~MpvVideoItem()
+void MpvVideoItem::teardownPlayer()
 {
-    qCDebug(lcShowroomPlayer) << "Destroying MpvVideoItem";
+    if (!m_player)
+        return;
+
+    qCDebug(lcShowroomPlayer) << "Tearing down Qt Multimedia pipeline";
+    m_player->stop();
+    m_player->setSource(QUrl());
+
+    m_player->disconnect(this);
+    m_audioOutput->disconnect(this);
+
+    m_player->deleteLater();
+    m_audioOutput->deleteLater();
+    m_videoOutput->deleteLater();
+    m_player = nullptr;
+    m_audioOutput = nullptr;
+    m_videoOutput = nullptr;
+
+    if (m_paused) {
+        m_paused = false;
+        emit pausedChanged();
+    }
+    m_behindLive = false;
+    setAtLiveEdge(true);
 }
 
 void MpvVideoItem::configurePlayer()
@@ -83,6 +116,7 @@ void MpvVideoItem::loadUrl(const QString &url)
     }
 
     qCInfo(lcShowroomPlayer) << "Loading stream:" << trimmed;
+    ensurePlayer();
     m_currentUrl = trimmed;
     m_behindLive = false;
     setAtLiveEdge(true);
@@ -92,20 +126,12 @@ void MpvVideoItem::loadUrl(const QString &url)
 
 void MpvVideoItem::stopPlayback()
 {
-    if (!m_player || !m_playing)
+    if (!m_player)
         return;
 
     qCInfo(lcShowroomPlayer) << "Stopping playback";
-    m_player->stop();
-    m_player->setSource(QUrl());
-
     m_currentUrl.clear();
-    if (m_paused) {
-        m_paused = false;
-        emit pausedChanged();
-    }
-    m_behindLive = false;
-    setAtLiveEdge(true);
+    teardownPlayer();
     setPlaying(false);
 }
 
@@ -137,6 +163,9 @@ void MpvVideoItem::catchUpToLive()
 
 void MpvVideoItem::reloadCurrentUrl(const bool resumePlayback)
 {
+    if (!m_player)
+        return;
+
     const QUrl source(m_currentUrl);
     m_player->stop();
     m_player->setSource(source);
@@ -189,6 +218,9 @@ void MpvVideoItem::onPlaybackStateChanged()
 
 void MpvVideoItem::onMediaStatusChanged()
 {
+    if (!m_player)
+        return;
+
     const auto status = m_player->mediaStatus();
     if (status == QMediaPlayer::LoadedMedia || status == QMediaPlayer::BufferedMedia) {
         qCInfo(lcShowroomPlayer) << "Stream loaded";
@@ -198,11 +230,17 @@ void MpvVideoItem::onMediaStatusChanged()
     } else if (status == QMediaPlayer::EndOfMedia) {
         qCInfo(lcShowroomPlayer) << "Playback ended (EOF)";
         m_currentUrl.clear();
-        setPlaying(false);
+        QTimer::singleShot(0, this, [this]() {
+            teardownPlayer();
+            setPlaying(false);
+        });
     } else if (status == QMediaPlayer::InvalidMedia) {
         reportError(tr("Playback error: invalid media"));
         m_currentUrl.clear();
-        setPlaying(false);
+        QTimer::singleShot(0, this, [this]() {
+            teardownPlayer();
+            setPlaying(false);
+        });
     }
 }
 
@@ -214,5 +252,8 @@ void MpvVideoItem::onErrorOccurred(const QMediaPlayer::Error error, const QStrin
     qCCritical(lcShowroomPlayer) << "Playback error:" << errorString;
     reportError(tr("Playback error: %1").arg(errorString));
     m_currentUrl.clear();
-    setPlaying(false);
+    QTimer::singleShot(0, this, [this]() {
+        teardownPlayer();
+        setPlaying(false);
+    });
 }

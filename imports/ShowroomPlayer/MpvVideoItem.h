@@ -55,6 +55,8 @@ private slots:
     void onErrorOccurred(QMediaPlayer::Error error, const QString &errorString);
 
 private:
+    void ensurePlayer();
+    void teardownPlayer();
     void configurePlayer();
     void reportError(const QString &message);
     void setPlaying(bool playing);
