@@ -111,6 +111,14 @@ if(APPLE)
     )
     add_custom_command(
         TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND}
+            -D "BUNDLE_DIR=$<TARGET_BUNDLE_DIR:${CMAKE_PROJECT_NAME}>"
+            -D "QT_INSTALL_LIBS=${Qt6_DIR}/../../../lib"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/fix_macos_qml_frameworks.cmake"
+        COMMENT "Copy Qt frameworks missed by macdeployqt (QML style impl deps)"
+    )
+    add_custom_command(
+        TARGET ${CMAKE_PROJECT_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${CMAKE_CURRENT_SOURCE_DIR}/content/icon/icon.icns"
             "$<TARGET_BUNDLE_CONTENT_DIR:${CMAKE_PROJECT_NAME}>/Resources/icon.icns"
