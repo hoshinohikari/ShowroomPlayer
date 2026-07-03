@@ -26,7 +26,7 @@ jobs:
           - os: macos
             runner: macos-26
             qt_arch: clang_64
-            artifact_glob: build/ShowroomPlayer.app
+            artifact_glob: build/Release/ShowroomPlayer.app
           - os: windows
             runner: windows-2025-vs2026
             qt_arch: win64_msvc2022_64
@@ -88,7 +88,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p staging
-          cp -RP build/ShowroomPlayer.app staging/
+          cp -RP build/Release/ShowroomPlayer.app staging/
           xattr -cr staging/ShowroomPlayer.app
           (cd staging && ditto -c -k --keepParent ShowroomPlayer.app ShowroomPlayer-macos.zip)
           ls -la staging/ShowroomPlayer-macos.zip
