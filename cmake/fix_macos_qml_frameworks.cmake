@@ -73,6 +73,21 @@ foreach(_fw IN LISTS _needed_fws)
         continue()
     endif()
 
+    # Embedded frameworks must be "sealed": only the executable, Resources,
+    # Versions, and (optionally) a top-level Info.plist are allowed at the
+    # framework root. Qt ships a top-level Headers symlink that macdeployqt
+    # strips from frameworks it deploys itself, but our cp -RH above brings
+    # it along, and codesign later reports "unsealed contents present in the
+    # root directory of an embedded framework". Remove it (and the matching
+    # Versions/<ver>/Headers dir, which is also unused at runtime).
+    if(IS_SYMLINK "${_dst}/Headers" OR EXISTS "${_dst}/Headers")
+        file(REMOVE_RECURSE "${_dst}/Headers")
+    endif()
+    file(GLOB _ver_headers "${_dst}/Versions/*/Headers")
+    foreach(_vh IN LISTS _ver_headers)
+        file(REMOVE_RECURSE "${_vh}")
+    endforeach()
+
     # Ad-hoc sign the framework's versioned executable (follows Versions/Current).
     file(GLOB _fw_executables "${_dst}/Versions/*/${_fw}")
     foreach(_exe IN LISTS _fw_executables)
