@@ -46,10 +46,10 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install Conan
+      - name: Install Conan and Ninja
         run: |
           python -m pip install --upgrade pip
-          pip install "conan>=2.5"
+          pip install "conan>=2.5" ninja
 
       - name: Install system dependencies (Linux)
         if: matrix.os == 'linux'
@@ -65,9 +65,6 @@ jobs:
             libpulse-dev \
             libssl-dev \
             ffmpeg
-
-      - name: Install Ninja
-        uses: turtlesec/get-ninja@main
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
