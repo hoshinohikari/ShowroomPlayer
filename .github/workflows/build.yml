@@ -59,8 +59,14 @@ jobs:
           cache: true
 
       - name: Configure CMake
+        shell: bash
         run: |
-          cmake -S . -B build -G "Ninja Multi-Config" -DCMAKE_CONFIGURATION_TYPES=${{ env.BUILD_TYPE }}
+          if [ "${{ matrix.os }}" = "windows" ]; then
+            cmake -S . -B build -G "Visual Studio 18 2026" -A x64
+          else
+            cmake -S . -B build -G "Ninja Multi-Config" \
+              -DCMAKE_CONFIGURATION_TYPES=${{ env.BUILD_TYPE }}
+          fi
 
       - name: Build
         run: |
@@ -68,13 +74,31 @@ jobs:
 
       - name: Install (deploy)
         run: |
-          cmake --install build --config ${{ env.BUILD_TYPE }} --prefix dist
+          cmake --install build --config ${{ env.BUILD_TYPE }} --prefix "${{ github.workspace }}/dist"
+
+      - name: Package macOS app
+        if: matrix.os == 'macos'
+        # actions/upload-artifact's internal zipper does NOT preserve the
+        # symlinks Qt frameworks rely on (Versions/Current, top-level Foo,
+        # Resources). When the user extracts via Archive Utility or Keka those
+        # symlinks become real copies, the framework's Versions/A/_CodeSignature
+        # seal no longer matches the duplicated content, and macOS AMFI kills
+        # the app at launch with "Invalid Page". ditto's zip mode preserves
+        # symlinks, so we pre-zip with ditto and upload that zip instead.
+        run: |
+          set -euo pipefail
+          mkdir -p staging
+          cp -RP build/ShowroomPlayer.app staging/
+          xattr -cr staging/ShowroomPlayer.app
+          (cd staging && ditto -c -k --keepParent ShowroomPlayer.app ShowroomPlayer-macos.zip)
+          ls -la staging/ShowroomPlayer-macos.zip
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: ShowroomPlayer-${{ matrix.os }}
           path: |
-            ${{ matrix.artifact_glob }}
-            dist/
+            ${{ matrix.os != 'macos' && matrix.artifact_glob || '' }}
+            ${{ matrix.os != 'macos' && 'dist/' || '' }}
+            staging/ShowroomPlayer-macos.zip
           if-no-files-found: error
