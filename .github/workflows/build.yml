@@ -9,7 +9,7 @@ on:
 
 env:
   BUILD_TYPE: Release
-  QT_VERSION: 6.8.2
+  QT_VERSION: 6.10.3
 
 jobs:
   build:
@@ -25,26 +25,26 @@ jobs:
             preset_prefix: Linux
             artifact_glob: build/ShowroomPlayer
           - os: macos
-            runner: macos-13
-            qt_arch: macos_64
+            runner: macos-26
+            qt_arch: clang_64
             preset_prefix: Macos
             artifact_glob: build/ShowroomPlayer.app
           - os: windows
-            runner: windows-2022
-            qt_arch: win64_msvc2019_64
+            runner: windows-2025-vs2026
+            qt_arch: win64_msvc2022_64
             preset_prefix: Windows
             artifact_glob: build/Release/ShowroomPlayer.exe
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
-          python-version: "3.11"
+          python-version: "3.13"
 
       - name: Install Conan and Ninja
         run: |
@@ -71,7 +71,7 @@ jobs:
         with:
           version: ${{ env.QT_VERSION }}
           arch: ${{ matrix.qt_arch }}
-          modules: qt multimedia qtwebsockets qtquickcontrols2
+          modules: 'qtmultimedia qtwebsockets'
           cache: true
 
       - name: Conan install
