@@ -1,0 +1,102 @@
+name: Build
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+  workflow_dispatch:
+
+env:
+  BUILD_TYPE: Release
+  QT_VERSION: 6.8.2
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: linux
+            runner: ubuntu-22.04
+            qt_arch: linux_gcc_64
+            preset_prefix: Linux
+            artifact_glob: build/ShowroomPlayer
+          - os: macos
+            runner: macos-13
+            qt_arch: macos_64
+            preset_prefix: Macos
+            artifact_glob: build/ShowroomPlayer.app
+          - os: windows
+            runner: windows-2022
+            qt_arch: win64_msvc2019_64
+            preset_prefix: Windows
+            artifact_glob: build/Release/ShowroomPlayer.exe
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Conan
+        run: |
+          python -m pip install --upgrade pip
+          pip install "conan>=2.5"
+
+      - name: Install system dependencies (Linux)
+        if: matrix.os == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgl1-mesa-dev \
+            libegl1-mesa-dev \
+            libxkbcommon-x11-dev \
+            libdbus-1-dev \
+            libfontconfig1-dev \
+            libfreetype6-dev \
+            libpulse-dev \
+            libssl-dev \
+            ffmpeg
+
+      - name: Install Ninja
+        uses: turtlesec/get-ninja@main
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: ${{ env.QT_VERSION }}
+          arch: ${{ matrix.qt_arch }}
+          modules: qt multimedia qtwebsockets qtquickcontrols2
+          cache: true
+
+      - name: Conan install
+        run: conan install . --build=missing -s build_type=${{ env.BUILD_TYPE }}
+
+      - name: Configure CMake
+        run: |
+          cmake --preset ${{ matrix.preset_prefix }}${{ env.BUILD_TYPE }}
+
+      - name: Build
+        run: |
+          cmake --build --preset ${{ matrix.preset_prefix }}${{ env.BUILD_TYPE }} --config ${{ env.BUILD_TYPE }}
+
+      - name: Install (deploy)
+        run: |
+          cmake --install build --config ${{ env.BUILD_TYPE }} --prefix dist
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ShowroomPlayer-${{ matrix.os }}
+          path: |
+            ${{ matrix.artifact_glob }}
+            dist/
+          if-no-files-found: error
