@@ -91,7 +91,10 @@ private:
     bool m_pollInFlight = false;
     bool m_pollPending = false;
     bool m_authWired = false;
+    int m_wireAuthAttempts = 0;
     qint64 m_fetchingStreamRoomId = -1;
     QSet<QString> m_dismissedFollowers;
     ShowroomLiveSocket *m_liveSocket = nullptr;
+
+    static constexpr int kMaxWireAuthAttempts = 50;
 };

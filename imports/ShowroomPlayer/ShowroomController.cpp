@@ -247,6 +247,9 @@ void ShowroomController::wireToAuth(ShowroomAuth *auth)
 
 void ShowroomController::wireAuth()
 {
+    if (m_authWired)
+        return;
+
     if (!m_qmlEngine) {
         QTimer::singleShot(0, this, &ShowroomController::wireAuth);
         return;
@@ -255,7 +258,13 @@ void ShowroomController::wireAuth()
     ShowroomAuth *auth = m_qmlEngine->singletonInstance<ShowroomAuth *>(
         QStringLiteral("ShowroomPlayer"), QStringLiteral("ShowroomAuth"));
     if (!auth) {
-        QTimer::singleShot(0, this, &ShowroomController::wireAuth);
+        if (++m_wireAuthAttempts < kMaxWireAuthAttempts) {
+            QTimer::singleShot(0, this, &ShowroomController::wireAuth);
+        } else {
+            qCWarning(lcShowroomController)
+                << "wireAuth gave up after" << kMaxWireAuthAttempts
+                << "attempts; auth wiring left to QML onCompleted";
+        }
         return;
     }
 
