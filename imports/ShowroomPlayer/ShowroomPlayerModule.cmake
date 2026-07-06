@@ -18,6 +18,8 @@ qt6_add_qml_module(ShowroomPlayer
         ShowroomApi.h
         ShowroomSessionStore.cpp
         ShowroomSessionStore.h
+        ShowroomProxy.cpp
+        ShowroomProxy.h
         ShowroomAuth.cpp
         ShowroomAuth.h
         ShowroomController.cpp
