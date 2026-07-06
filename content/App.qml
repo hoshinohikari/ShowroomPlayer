@@ -24,6 +24,10 @@ ApplicationWindow {
         id: loginDialog
     }
 
+    SettingsDialog {
+        id: settingsDialog
+    }
+
     Connections {
         target: ShowroomAuth
         function onLoginFailed(message) {
@@ -66,6 +70,7 @@ ApplicationWindow {
             SplitView.maximumWidth: window.width * 0.45
 
             onLoginRequested: loginDialog.open()
+            onSettingsRequested: settingsDialog.open()
         }
 
         VideoPanel {

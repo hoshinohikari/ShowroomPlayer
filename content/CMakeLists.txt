@@ -17,6 +17,7 @@ qt6_add_qml_module(showroom_content
         components/IconOverlayButton.qml
         components/SplitHandle.qml
         panels/LoginDialog.qml
+        panels/SettingsDialog.qml
         panels/SidebarPanel.qml
         panels/VideoPanel.qml
         panels/ChatPanel.qml

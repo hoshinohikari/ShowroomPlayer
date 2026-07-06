@@ -12,6 +12,7 @@ Rectangle {
     border.width: 1
 
     signal loginRequested()
+    signal settingsRequested()
 
     ColumnLayout {
         anchors.fill: parent
@@ -78,6 +79,43 @@ Rectangle {
                 contentItem: Text {
                     text: parent.text
                     color: Theme.textSecondary
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+
+                background: Rectangle {
+                    radius: Theme.radiusSm
+                    color: parent.hovered ? Theme.surfaceHover : Theme.input
+                    border.color: Theme.border
+                    border.width: 1
+                }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 8
+
+            Label {
+                Layout.fillWidth: true
+                text: ShowroomProxy.enabled
+                      ? (ShowroomProxy.host.length > 0 && ShowroomProxy.port > 0
+                         ? qsTr("Proxy: %1:%2").arg(ShowroomProxy.host).arg(ShowroomProxy.port)
+                         : qsTr("Proxy enabled (incomplete)"))
+                      : qsTr("Proxy off")
+                color: ShowroomProxy.enabled ? Theme.liveSoft : Theme.textMuted
+                font.pixelSize: 11
+                elide: Text.ElideRight
+            }
+
+            Button {
+                text: qsTr("Settings")
+                onClicked: root.settingsRequested()
+
+                contentItem: Text {
+                    text: parent.text
+                    color: parent.hovered ? Theme.textPrimary : Theme.textSecondary
+                    font.pixelSize: 12
                     horizontalAlignment: Text.AlignHCenter
                     verticalAlignment: Text.AlignVCenter
                 }
