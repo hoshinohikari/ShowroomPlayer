@@ -3,6 +3,7 @@
 #include "ShowroomAuth.h"
 #include "ShowroomLiveSocket.h"
 #include "ShowroomLog.h"
+#include "ShowroomProxyServer.h"
 
 #include <QDateTime>
 #include <QJSEngine>
@@ -781,7 +782,9 @@ void ShowroomController::fetchStreamUrl(qint64 roomId, const QString &username)
                    qCInfo(lcShowroomController) << "Stream ready for" << username
                                                 << "quality:" << selectedQuality
                                                 << "url:" << streamUrl;
-                   emit playStream(streamUrl);
+                   const QString proxiedUrl =
+                       ShowroomProxyServer::instance()->rewriteUrl(streamUrl);
+                   emit playStream(proxiedUrl);
                    startLiveSocket(roomId);
                });
 }
