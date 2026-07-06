@@ -7,6 +7,7 @@
 #include <QJsonObject>
 #include <QLatin1StringView>
 #include <QNetworkCookie>
+#include <QNetworkProxy>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QTimer>
@@ -211,6 +212,7 @@ void ShowroomLiveSocket::openWebSocket(const QString &bcsvrKey)
         request.setRawHeader("Cookie", cookieHeader);
 
     qCInfo(lcShowroomLive) << "Upgrading to WebSocket at" << kWsUrl << "for room" << m_roomId;
+    m_socket->setProxy(QNetworkProxy::applicationProxy());
     m_socket->open(request);
 }
 
