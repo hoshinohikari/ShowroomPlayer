@@ -36,6 +36,7 @@ private slots:
     void onSocketError();
     void onTextMessageReceived(const QString &message);
     void onReconnectTimer();
+    void onIdleTimeout();
 
 private:
     void closeSocket();
@@ -47,10 +48,13 @@ private:
     void handleServerMessage(const QString &message);
     void handleLiveInfoReady(qint64 roomId, const QString &bcsvrKey, bool resumeSession);
     void handleLiveInfoOffline(qint64 roomId, int liveStatus, bool duringReconnect);
+    void resetIdleWatchdog();
+    void stopIdleWatchdog();
 
     ShowroomApi *m_api;
     QWebSocket *m_socket = nullptr;
     QTimer *m_reconnectTimer = nullptr;
+    QTimer *m_idleTimer = nullptr;
     QString m_bcsvrKey;
     qint64 m_roomId = 0;
     int m_reconnectAttempt = 0;
@@ -62,4 +66,5 @@ private:
     static constexpr int kLiveStatusOnAir = 2;
     static constexpr int kInitialReconnectDelayMs = 2000;
     static constexpr int kMaxReconnectDelayMs = 30000;
+    static constexpr int kIdleTimeoutMs = 45000;
 };

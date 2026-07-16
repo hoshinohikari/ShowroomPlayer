@@ -51,9 +51,13 @@ ShowroomLiveSocket::ShowroomLiveSocket(ShowroomApi *api, QObject *parent)
     , m_api(api)
     , m_socket(new QWebSocket(QString(), QWebSocketProtocol::VersionLatest, this))
     , m_reconnectTimer(new QTimer(this))
+    , m_idleTimer(new QTimer(this))
 {
     m_reconnectTimer->setSingleShot(true);
     connect(m_reconnectTimer, &QTimer::timeout, this, &ShowroomLiveSocket::onReconnectTimer);
+
+    m_idleTimer->setSingleShot(true);
+    connect(m_idleTimer, &QTimer::timeout, this, &ShowroomLiveSocket::onIdleTimeout);
 
     connect(m_socket, &QWebSocket::connected, this, &ShowroomLiveSocket::onSocketConnected);
     connect(m_socket, &QWebSocket::disconnected, this, &ShowroomLiveSocket::onSocketDisconnected);
@@ -94,6 +98,7 @@ void ShowroomLiveSocket::connectToRoom(qint64 roomId)
 
 void ShowroomLiveSocket::disconnectFromRoom()
 {
+    stopIdleWatchdog();
     m_userDisconnect = true;
     m_wantsConnection = false;
     m_reconnectTimer->stop();
@@ -114,6 +119,7 @@ void ShowroomLiveSocket::disconnectFromRoom()
 
 void ShowroomLiveSocket::closeSocket()
 {
+    stopIdleWatchdog();
     if (m_socket->state() != QAbstractSocket::UnconnectedState)
         m_socket->close();
 }
@@ -189,6 +195,7 @@ void ShowroomLiveSocket::handleLiveInfoOffline(qint64 roomId, int liveStatus, bo
     qCInfo(lcShowroomLive) << "Room" << roomId << "not on air, status:" << liveStatus
                            << "during reconnect:" << duringReconnect;
 
+    stopIdleWatchdog();
     m_wantsConnection = false;
     m_roomId = 0;
     m_bcsvrKey.clear();
@@ -221,6 +228,7 @@ void ShowroomLiveSocket::onSocketConnected()
     qCInfo(lcShowroomLive) << "WebSocket connected (101 Switching Protocols), room:" << m_roomId;
     m_connected = true;
     m_reconnectAttempt = 0;
+    resetIdleWatchdog();
     sendSubscribe();
 
     if (m_resumeSession) {
@@ -244,6 +252,7 @@ void ShowroomLiveSocket::sendSubscribe()
 
 void ShowroomLiveSocket::onSocketDisconnected()
 {
+    stopIdleWatchdog();
     const bool wasConnected = m_connected;
     m_connected = false;
 
@@ -266,6 +275,7 @@ void ShowroomLiveSocket::onSocketError()
 
 void ShowroomLiveSocket::beginReconnect()
 {
+    stopIdleWatchdog();
     if (m_userDisconnect || !m_wantsConnection || m_roomId <= 0)
         return;
 
@@ -303,7 +313,30 @@ void ShowroomLiveSocket::onReconnectTimer()
 
 void ShowroomLiveSocket::onTextMessageReceived(const QString &message)
 {
+    resetIdleWatchdog();
     handleServerMessage(message);
+}
+
+void ShowroomLiveSocket::onIdleTimeout()
+{
+    if (m_userDisconnect || !m_wantsConnection || m_roomId <= 0)
+        return;
+
+    qCWarning(lcShowroomLive) << "No frames for" << kIdleTimeoutMs
+                              << "ms, assuming half-open dead link, room:" << m_roomId;
+    m_connected = false;
+    m_socket->abort();
+    beginReconnect();
+}
+
+void ShowroomLiveSocket::resetIdleWatchdog()
+{
+    m_idleTimer->start(kIdleTimeoutMs);
+}
+
+void ShowroomLiveSocket::stopIdleWatchdog()
+{
+    m_idleTimer->stop();
 }
 
 void ShowroomLiveSocket::handleServerMessage(const QString &message)
