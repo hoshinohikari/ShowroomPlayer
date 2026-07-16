@@ -7,6 +7,14 @@ endif()
 
 project(ShowroomPlayerApp VERSION 1.4.0.0 LANGUAGES CXX)
 
+include(GNUInstallDirs)
+if(WIN32)
+    # Keep the portable executable and its runtime DLLs in the same directory.
+    set(CMAKE_INSTALL_BINDIR ".")
+    set(CMAKE_INSTALL_SYSTEM_RUNTIME_DESTINATION ".")
+    include(InstallRequiredSystemLibraries)
+endif()
+
 configure_file(
     ${CMAKE_CURRENT_SOURCE_DIR}/cmake/version.h.in
     ${CMAKE_CURRENT_BINARY_DIR}/generated/version.h
@@ -74,7 +82,6 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
     Qt6::QuickControls2
 )
 
-include(GNUInstallDirs)
 install(TARGETS ${CMAKE_PROJECT_NAME}
     BUNDLE DESTINATION .
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
@@ -93,12 +100,19 @@ if(APPLE)
     set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES MACOSX_BUNDLE_ICON_FILE icon)
 endif()
 
+set(_deploy_options)
+if(WIN32)
+    # InstallRequiredSystemLibraries deploys the MSVC runtime DLLs app-locally.
+    list(APPEND _deploy_options NO_COMPILER_RUNTIME)
+endif()
+
 qt_generate_deploy_qml_app_script(
     TARGET ${CMAKE_PROJECT_NAME}
     OUTPUT_SCRIPT deploy_script
     MACOS_BUNDLE_POST_BUILD
     NO_UNSUPPORTED_PLATFORM_ERROR
     DEPLOY_USER_QML_MODULES_ON_UNSUPPORTED_PLATFORM
+    ${_deploy_options}
 )
 install(SCRIPT ${deploy_script})
 

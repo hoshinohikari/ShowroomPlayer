@@ -22,15 +22,12 @@ jobs:
           - os: linux
             runner: ubuntu-22.04
             qt_arch: linux_gcc_64
-            artifact_glob: build/ShowroomPlayer
           - os: macos
             runner: macos-26
             qt_arch: clang_64
-            artifact_glob: build/Release/ShowroomPlayer.app
           - os: windows
             runner: windows-2025-vs2026
             qt_arch: win64_msvc2022_64
-            artifact_glob: build/Release/ShowroomPlayer.exe
 
     steps:
       - name: Checkout
@@ -76,6 +73,42 @@ jobs:
         run: |
           cmake --install build --config ${{ env.BUILD_TYPE }} --prefix "${{ github.workspace }}/dist"
 
+      - name: Verify Windows package
+        if: matrix.os == 'windows'
+        shell: pwsh
+        run: |
+          $dist = Join-Path $env:GITHUB_WORKSPACE "dist"
+          $required = @(
+            "ShowroomPlayer.exe",
+            "qt.conf",
+            "Qt6Core.dll",
+            "Qt6Gui.dll",
+            "Qt6Qml.dll",
+            "Qt6Quick.dll",
+            "msvcp140.dll",
+            "vcruntime140.dll",
+            "plugins\platforms\qwindows.dll",
+            "qml\QtQuick\qtquick2plugin.dll"
+          )
+          $missing = $required | Where-Object { -not (Test-Path (Join-Path $dist $_)) }
+          if ($missing) {
+            throw "Missing Windows deployment files: $($missing -join ', ')"
+          }
+
+          $process = $null
+          try {
+            $process = Start-Process -FilePath (Join-Path $dist "ShowroomPlayer.exe") `
+              -WorkingDirectory $dist -PassThru
+            Start-Sleep -Seconds 5
+            if ($process.HasExited) {
+              throw "ShowroomPlayer exited during smoke test with code $($process.ExitCode)"
+            }
+          } finally {
+            if ($null -ne $process -and -not $process.HasExited) {
+              Stop-Process -Id $process.Id -Force
+            }
+          }
+
       - name: Package macOS app
         if: matrix.os == 'macos'
         # actions/upload-artifact's internal zipper does NOT preserve the
@@ -93,12 +126,28 @@ jobs:
           (cd staging && ditto -c -k --keepParent ShowroomPlayer.app ShowroomPlayer-macos.zip)
           ls -la staging/ShowroomPlayer-macos.zip
 
-      - name: Upload artifact
+      - name: Upload Linux artifact
+        if: matrix.os == 'linux'
         uses: actions/upload-artifact@v7
         with:
-          name: ShowroomPlayer-${{ matrix.os }}
+          name: ShowroomPlayer-linux
           path: |
-            ${{ matrix.os != 'macos' && matrix.artifact_glob || '' }}
-            ${{ matrix.os != 'macos' && 'dist/' || '' }}
-            staging/ShowroomPlayer-macos.zip
+            build/ShowroomPlayer
+            dist/
+          if-no-files-found: error
+
+      - name: Upload Windows artifact
+        if: matrix.os == 'windows'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ShowroomPlayer-windows
+          path: dist/
+          if-no-files-found: error
+
+      - name: Upload macOS artifact
+        if: matrix.os == 'macos'
+        uses: actions/upload-artifact@v7
+        with:
+          name: ShowroomPlayer-macos
+          path: staging/ShowroomPlayer-macos.zip
           if-no-files-found: error
