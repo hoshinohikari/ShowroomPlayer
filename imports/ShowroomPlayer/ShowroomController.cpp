@@ -15,6 +15,7 @@
 #include <QMetaObject>
 #include <QNetworkReply>
 #include <QTimer>
+#include <QUrl>
 #include <QUrlQuery>
 
 namespace {
@@ -779,9 +780,9 @@ void ShowroomController::fetchStreamUrl(qint64 roomId, const QString &username)
                        return;
                    }
 
-                   qCInfo(lcShowroomController) << "Stream ready for" << username
-                                                << "quality:" << selectedQuality
-                                                << "url:" << streamUrl;
+                    qCInfo(lcShowroomController) << "Stream ready for" << username
+                                                 << "quality:" << selectedQuality
+                                                 << "host:" << QUrl(streamUrl).host();
                    const QString proxiedUrl =
                        ShowroomProxyServer::instance()->rewriteUrl(streamUrl);
                    emit playStream(proxiedUrl);

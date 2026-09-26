@@ -12,6 +12,7 @@
 
 #include "app_environment.h"
 #include "import_qml_plugins.h"
+#include "ApplicationLogging.h"
 #include "ShowroomLog.h"
 #include "version.h"
 
@@ -66,6 +67,7 @@ int main(int argc, char *argv[])
     QCoreApplication::setApplicationVersion(QStringLiteral(SHOWROOM_VERSION_STRING));
 
     QGuiApplication app(argc, argv);
+    ApplicationLogging::initialize(&app);
     const QIcon appIcon = loadAppIcon();
     if (!appIcon.isNull())
         app.setWindowIcon(appIcon);

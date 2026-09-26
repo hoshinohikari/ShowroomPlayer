@@ -37,6 +37,7 @@ set(QML_IMPORT_PATH
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Qml Quick Multimedia Network QuickControls2 WebSockets)
 find_package(Qt6MultimediaQuickPrivate REQUIRED)
+find_package(spdlog CONFIG REQUIRED)
 
 qt_policy(SET QTP0005 NEW)
 qt_policy(SET QTP0004 NEW)
@@ -73,6 +74,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
 )
 
 target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
+    ShowroomPlayer
     Qt6::Core
     Qt6::Gui
     Qt6::Quick
@@ -80,7 +82,29 @@ target_link_libraries(${CMAKE_PROJECT_NAME} PRIVATE
     Qt6::Multimedia
     Qt6::MultimediaQuickPrivate
     Qt6::QuickControls2
+    spdlog::spdlog_header_only
 )
+
+include(CTest)
+if(BUILD_TESTING)
+    find_package(Qt6 REQUIRED COMPONENTS Test)
+
+    qt_add_executable(tst_ApplicationLogging
+        tests/tst_ApplicationLogging.cpp
+    )
+    target_include_directories(tst_ApplicationLogging PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/imports/ShowroomPlayer
+    )
+    target_link_libraries(tst_ApplicationLogging PRIVATE
+        ShowroomPlayer
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Qml
+        Qt6::Test
+        spdlog::spdlog_header_only
+    )
+    add_test(NAME ApplicationLogging COMMAND tst_ApplicationLogging)
+endif()
 
 install(TARGETS ${CMAKE_PROJECT_NAME}
     BUNDLE DESTINATION .

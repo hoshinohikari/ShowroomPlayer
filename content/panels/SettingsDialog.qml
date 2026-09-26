@@ -28,8 +28,17 @@ Dialog {
         padding: 16
     }
 
-    contentItem: ColumnLayout {
-        spacing: 14
+    contentItem: ScrollView {
+        id: settingsScroll
+        clip: true
+        implicitWidth: settingsContent.implicitWidth
+        implicitHeight: Math.min(settingsContent.implicitHeight,
+                                 Math.max(200, settingsDialog.parent.height - 140))
+
+        ColumnLayout {
+            id: settingsContent
+            width: settingsScroll.availableWidth
+            spacing: 14
 
         Label {
             Layout.fillWidth: true
@@ -275,6 +284,75 @@ Dialog {
 
         Label {
             Layout.fillWidth: true
+            text: qsTr("Logging")
+            color: Theme.textPrimary
+            font.pixelSize: 14
+            font.weight: Font.Medium
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+
+            Switch {
+                id: fileLoggingSwitch
+                checked: ShowroomLogging.fileEnabled
+                onToggled: ShowroomLogging.fileEnabled = checked
+
+                contentItem: Label {
+                    leftPadding: fileLoggingSwitch.indicator.width + fileLoggingSwitch.spacing
+                    text: qsTr("Save log files")
+                    color: Theme.textPrimary
+                    font.pixelSize: 14
+                    verticalAlignment: Text.AlignVCenter
+                }
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 8
+
+            Label {
+                text: qsTr("Mode")
+                color: Theme.textSecondary
+                font.pixelSize: 12
+                Layout.preferredWidth: 64
+            }
+
+            ComboBox {
+                id: loggingModeCombo
+                Layout.fillWidth: true
+                model: [qsTr("Normal"), qsTr("Playback diagnostics")]
+                currentIndex: ShowroomLogging.mode
+                onActivated: ShowroomLogging.mode = currentIndex
+            }
+        }
+
+        Label {
+            Layout.fillWidth: true
+            wrapMode: Text.WordWrap
+            text: ShowroomLogging.statusMessage
+                  + (ShowroomLogging.droppedMessages > 0
+                     ? qsTr("; dropped entries: %1").arg(ShowroomLogging.droppedMessages)
+                     : "")
+            color: ShowroomLogging.available ? Theme.textMuted : Theme.danger
+            font.pixelSize: 11
+        }
+
+        SecondaryButton {
+            Layout.fillWidth: true
+            text: qsTr("Open log folder")
+            onClicked: ShowroomLogging.openLogDirectory()
+        }
+
+        Rectangle {
+            Layout.fillWidth: true
+            height: 1
+            color: Theme.border
+        }
+
+        Label {
+            Layout.fillWidth: true
             wrapMode: Text.WordWrap
             color: Theme.textMuted
             font.pixelSize: 11
@@ -297,7 +375,7 @@ Dialog {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 text: qsTr("Save")
-                enabled: ShowroomProxy.dirty
+                enabled: ShowroomProxy.dirty || ShowroomLogging.dirty
                 onClicked: {
                     ShowroomProxy.host = hostField.text.trim()
                     const portValue = parseInt(portField.text.trim(), 10)
@@ -306,7 +384,10 @@ Dialog {
                     ShowroomProxy.password = passField.text
                     ShowroomProxy.enabled = enableSwitch.checked
                     ShowroomProxy.type = typeCombo.currentValue
-                    ShowroomProxy.save()
+                    if (ShowroomProxy.dirty)
+                        ShowroomProxy.save()
+                    if (ShowroomLogging.dirty)
+                        ShowroomLogging.save()
                 }
             }
 
@@ -314,15 +395,18 @@ Dialog {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 1
                 text: qsTr("Revert")
-                enabled: ShowroomProxy.dirty
+                enabled: ShowroomProxy.dirty || ShowroomLogging.dirty
                 onClicked: {
                     ShowroomProxy.revert()
+                    ShowroomLogging.revert()
                     enableSwitch.checked = ShowroomProxy.enabled
                     hostField.text = ShowroomProxy.host
                     portField.text = ShowroomProxy.port > 0 ? ShowroomProxy.port.toString() : ""
                     userField.text = ShowroomProxy.username
                     passField.text = ShowroomProxy.password
                     typeCombo.currentIndex = ShowroomProxy.type === 1 ? 1 : 0
+                    fileLoggingSwitch.checked = ShowroomLogging.fileEnabled
+                    loggingModeCombo.currentIndex = ShowroomLogging.mode
                 }
             }
 
@@ -333,6 +417,7 @@ Dialog {
                 onClicked: settingsDialog.close()
             }
         }
+        }
     }
 
     onOpened: {
@@ -342,5 +427,7 @@ Dialog {
         userField.text = ShowroomProxy.username
         passField.text = ShowroomProxy.password
         typeCombo.currentIndex = ShowroomProxy.type === 1 ? 1 : 0
+        fileLoggingSwitch.checked = ShowroomLogging.fileEnabled
+        loggingModeCombo.currentIndex = ShowroomLogging.mode
     }
 }

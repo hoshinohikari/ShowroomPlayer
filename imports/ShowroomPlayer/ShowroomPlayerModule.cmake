@@ -12,6 +12,8 @@ qt6_add_qml_module(ShowroomPlayer
     SOURCES
         ShowroomLog.cpp
         ShowroomLog.h
+        ApplicationLogging.cpp
+        ApplicationLogging.h
         MpvVideoItem.cpp
         MpvVideoItem.h
         ShowroomApi.cpp
@@ -45,11 +47,14 @@ target_include_directories(ShowroomPlayer PRIVATE
 )
 
 target_link_libraries(ShowroomPlayer PRIVATE
+    Qt6::Gui
+    Qt6::Qml
     Qt6::Quick
     Qt6::Multimedia
     Qt6::MultimediaQuickPrivate
     Qt6::Network
     Qt6::WebSockets
+    spdlog::spdlog_header_only
 )
 
 add_custom_command(TARGET ShowroomPlayer POST_BUILD

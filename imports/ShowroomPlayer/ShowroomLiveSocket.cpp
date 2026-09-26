@@ -180,9 +180,9 @@ void ShowroomLiveSocket::handleLiveInfoReady(qint64 roomId, const QString &bcsvr
     if (m_userDisconnect || !m_wantsConnection || m_roomId != roomId)
         return;
 
-    qCInfo(lcShowroomLive) << (resumeSession ? "Reconnect live_info ready, bcsvr_key:"
-                                             : "live_info ready, bcsvr_key:")
-                           << bcsvrKey;
+    qCInfo(lcShowroomLive) << (resumeSession ? "Reconnect live_info ready for room"
+                                             : "live_info ready for room")
+                           << roomId;
     m_resumeSession = resumeSession;
     openWebSocket(bcsvrKey);
 }
@@ -361,7 +361,7 @@ void ShowroomLiveSocket::handleServerMessage(const QString &message)
         }
 
         const QJsonObject payload = document.object();
-        qCDebug(lcShowroomLive) << "Live message for room" << m_roomId << ":" << payload;
+        qCDebug(lcShowroomLive) << "Live message received for room" << m_roomId;
         emit commentReceived(payload);
         return;
     }

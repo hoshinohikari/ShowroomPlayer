@@ -55,19 +55,36 @@ jobs:
           modules: 'qtmultimedia qtwebsockets'
           cache: true
 
+      - name: Set up Python for Conan
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install Conan dependencies
+        run: |
+          python -m pip install "conan==2.29.1"
+          conan profile detect --force
+          conan install . --output-folder=build/conan --build=missing --lockfile=conan.lock -s build_type=${{ env.BUILD_TYPE }}
+
       - name: Configure CMake
         shell: bash
         run: |
           if [ "${{ matrix.os }}" = "windows" ]; then
-            cmake -S . -B build -G "Visual Studio 18 2026" -A x64
+            cmake -S . -B build -G "Visual Studio 18 2026" -A x64 \
+              -DCMAKE_PREFIX_PATH="${{ github.workspace }}/build/conan"
           else
             cmake -S . -B build -G "Ninja Multi-Config" \
-              -DCMAKE_CONFIGURATION_TYPES=${{ env.BUILD_TYPE }}
+              -DCMAKE_CONFIGURATION_TYPES=${{ env.BUILD_TYPE }} \
+              -DCMAKE_PREFIX_PATH="${{ github.workspace }}/build/conan"
           fi
 
       - name: Build
         run: |
           cmake --build build --config ${{ env.BUILD_TYPE }}
+
+      - name: Test
+        run: |
+          ctest --test-dir build --build-config ${{ env.BUILD_TYPE }} --output-on-failure
 
       - name: Install (deploy)
         run: |
