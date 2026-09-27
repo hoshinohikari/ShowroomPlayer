@@ -5,7 +5,7 @@ if(APPLE AND NOT CMAKE_OSX_DEPLOYMENT_TARGET)
     set(CMAKE_OSX_DEPLOYMENT_TARGET "12.0" CACHE STRING "Minimum macOS version" FORCE)
 endif()
 
-project(ShowroomPlayerApp VERSION 1.4.0.0 LANGUAGES CXX)
+project(ShowroomPlayerApp VERSION 1.5.0.0 LANGUAGES CXX)
 
 include(GNUInstallDirs)
 if(WIN32)
