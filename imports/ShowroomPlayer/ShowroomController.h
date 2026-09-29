@@ -60,6 +60,7 @@ private slots:
     void startPollingIfNeeded();
     void onLoggedInChanged();
     void ingestLiveMessage(const QJsonObject &payload);
+    void fetchStageUserRanking();
 
 private:
     void resolveRoomId(const QString &username);
@@ -72,6 +73,7 @@ private:
     void fetchGiftList(qint64 roomId);
     void fetchEventStatus(qint64 roomId);
     void fetchGiftLog(qint64 roomId);
+    void stopStageUserRanking();
     void bootstrapGiftEventContext(qint64 roomId);
     void finishPoll(const QSet<qint64> &liveRoomIds);
     void ensureAuth();
@@ -86,6 +88,7 @@ private:
     QQmlEngine *m_qmlEngine = nullptr;
     ShowroomAuth *m_auth = nullptr;
     QTimer *m_pollTimer;
+    QTimer *m_stageRankTimer;
     int m_selectedIndex = -1;
     int m_pollIntervalMs = 10000;
     bool m_pollInFlight = false;
@@ -95,6 +98,10 @@ private:
     qint64 m_fetchingStreamRoomId = -1;
     QSet<QString> m_dismissedFollowers;
     ShowroomLiveSocket *m_liveSocket = nullptr;
+    qint64 m_stageRankRoomId = 0;
+    quint64 m_stageRankGeneration = 0;
+    bool m_stageRankInFlight = false;
 
     static constexpr int kMaxWireAuthAttempts = 50;
+    static constexpr int kStageRankPollIntervalMs = 30000;
 };

@@ -6,9 +6,6 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QIcon>
-#if !defined(Q_OS_MACOS)
-#include <QSurfaceFormat>
-#endif
 
 #include "app_environment.h"
 #include "import_qml_plugins.h"
@@ -20,19 +17,19 @@
 
 namespace {
 
-#if !defined(Q_OS_MACOS)
-
-void configureOpenGLSurfaceFormat()
+void configureGraphicsApi()
 {
-    QSurfaceFormat fmt;
-    fmt.setVersion(3, 2);
-    fmt.setProfile(QSurfaceFormat::CoreProfile);
-    fmt.setDepthBufferSize(24);
-    fmt.setStencilBufferSize(8);
-    QSurfaceFormat::setDefaultFormat(fmt);
-}
+    if (!qEnvironmentVariableIsEmpty("QSG_RHI_BACKEND"))
+        return;
 
+#if defined(Q_OS_MACOS)
+    QQuickWindow::setGraphicsApi(QSGRendererInterface::Metal);
+#elif defined(Q_OS_WIN)
+    QQuickWindow::setGraphicsApi(QSGRendererInterface::Direct3D11);
+#elif defined(Q_OS_LINUX)
+    QQuickWindow::setGraphicsApi(QSGRendererInterface::Vulkan);
 #endif
+}
 
 QIcon loadAppIcon()
 {
@@ -54,12 +51,7 @@ int main(int argc, char *argv[])
         Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
 
     QQuickWindow::setTextRenderType(QQuickWindow::QtTextRendering);
-#if defined(Q_OS_MACOS)
-    QQuickWindow::setGraphicsApi(QSGRendererInterface::Metal);
-#else
-    QQuickWindow::setGraphicsApi(QSGRendererInterface::OpenGL);
-    configureOpenGLSurfaceFormat();
-#endif
+    configureGraphicsApi();
 
     set_qt_environment();
 

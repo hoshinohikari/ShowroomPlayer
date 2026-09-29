@@ -31,9 +31,10 @@ Dialog {
     contentItem: ScrollView {
         id: settingsScroll
         clip: true
-        implicitWidth: settingsContent.implicitWidth
+        contentWidth: availableWidth
         implicitHeight: Math.min(settingsContent.implicitHeight,
                                  Math.max(200, settingsDialog.parent.height - 140))
+        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
 
         ColumnLayout {
             id: settingsContent
@@ -292,6 +293,7 @@ Dialog {
 
         RowLayout {
             Layout.fillWidth: true
+            spacing: 10
 
             Switch {
                 id: fileLoggingSwitch
@@ -305,7 +307,29 @@ Dialog {
                     font.pixelSize: 14
                     verticalAlignment: Text.AlignVCenter
                 }
+
+                indicator: Rectangle {
+                    implicitWidth: 42
+                    implicitHeight: 24
+                    x: fileLoggingSwitch.leftPadding
+                    y: parent.height / 2 - height / 2
+                    radius: 12
+                    color: fileLoggingSwitch.checked ? Theme.accent : Theme.input
+                    border.color: Theme.border
+                    border.width: 1
+
+                    Rectangle {
+                        x: fileLoggingSwitch.checked ? parent.width - width - 3 : 3
+                        y: parent.height / 2 - height / 2
+                        width: 18
+                        height: 18
+                        radius: 9
+                        color: "#FFFFFF"
+                    }
+                }
             }
+
+            Item { Layout.fillWidth: true }
         }
 
         RowLayout {

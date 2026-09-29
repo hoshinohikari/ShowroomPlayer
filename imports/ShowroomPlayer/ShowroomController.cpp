@@ -141,18 +141,25 @@ ShowroomController::ShowroomController(QObject *parent)
     : QObject(parent)
     , m_api(ShowroomApi::shared(this))
     , m_pollTimer(new QTimer(this))
+    , m_stageRankTimer(new QTimer(this))
 {
     m_pollTimer->setInterval(m_pollIntervalMs);
     connect(m_pollTimer, &QTimer::timeout, this, &ShowroomController::pollOnlineRooms);
+    m_stageRankTimer->setInterval(kStageRankPollIntervalMs);
+    connect(m_stageRankTimer, &QTimer::timeout, this,
+            &ShowroomController::fetchStageUserRanking);
     m_liveSocket = new ShowroomLiveSocket(m_api, this);
     connect(m_liveSocket, &ShowroomLiveSocket::commentReceived, this,
             &ShowroomController::ingestLiveMessage);
     connect(m_liveSocket, &ShowroomLiveSocket::disconnected, this, [this]() {
+        stopStageUserRanking();
         m_liveChat.clearMessages();
         m_liveGifts.clearMessages();
         m_liveGifts.clearGiftCatalog();
     });
     connect(m_liveSocket, &ShowroomLiveSocket::connected, this, [this](qint64 roomId) {
+        stopStageUserRanking();
+        m_stageRankRoomId = roomId;
         m_liveChat.clearMessages();
         m_liveGifts.clearMessages();
         fetchGiftList(roomId);
@@ -162,6 +169,7 @@ ShowroomController::ShowroomController(QObject *parent)
         qCInfo(lcShowroomController) << "Live chat socket resumed, keeping session state";
     });
     connect(m_liveSocket, &ShowroomLiveSocket::sessionEnded, this, [this](qint64 roomId) {
+        stopStageUserRanking();
         qCInfo(lcShowroomController) << "Live session ended for room" << roomId;
         for (int row = 0; row < m_users.rowCount(); ++row) {
             if (m_users.userAt(row).roomId == roomId)
@@ -723,11 +731,126 @@ void ShowroomController::fetchGiftLog(qint64 roomId)
                    }
 
                    m_liveGifts.ingestGiftLog(doc.object());
+                   if (m_stageRankRoomId == roomId && m_liveSocket->isConnected()) {
+                       m_stageRankTimer->start();
+                       fetchStageUserRanking();
+                   }
+               });
+}
+
+void ShowroomController::stopStageUserRanking()
+{
+    m_stageRankTimer->stop();
+    m_stageRankRoomId = 0;
+    m_stageRankInFlight = false;
+    ++m_stageRankGeneration;
+}
+
+void ShowroomController::fetchStageUserRanking()
+{
+    const qint64 roomId = m_stageRankRoomId;
+    if (roomId <= 0 || m_stageRankInFlight || !m_liveSocket->isConnected()
+        || m_liveSocket->roomId() != roomId || m_selectedIndex < 0
+        || m_users.userAt(m_selectedIndex).roomId != roomId) {
+        return;
+    }
+
+    m_stageRankInFlight = true;
+    const quint64 generation = m_stageRankGeneration;
+    const QString requestedAt = QDateTime::currentDateTimeUtc().toString(Qt::ISODateWithMs);
+    QUrlQuery query;
+    query.addQueryItem(QStringLiteral("room_id"), QString::number(roomId));
+    m_api->get(QStringLiteral("api/live/stage_user_list"), query,
+               [this, roomId, generation, requestedAt](QNetworkReply *reply) {
+                   if (generation != m_stageRankGeneration || m_stageRankRoomId != roomId)
+                       return;
+                   m_stageRankInFlight = false;
+
+                   if (reply->error() != QNetworkReply::NoError) {
+                       qCWarning(lcShowroomRanking)
+                           << "Stage rank comparison request failed, room:" << roomId
+                           << "error:" << reply->errorString();
+                       return;
+                   }
+
+                   const QJsonDocument document = QJsonDocument::fromJson(reply->readAll());
+                   if (!document.isObject()
+                       || !document.object().value(QLatin1String("stage_user_list")).isArray()) {
+                       qCWarning(lcShowroomRanking)
+                           << "Stage rank comparison received invalid response, room:" << roomId;
+                       return;
+                   }
+
+                   const QJsonArray serverRows =
+                       document.object().value(QLatin1String("stage_user_list")).toArray();
+                   GiftContributorModel *local = m_liveGifts.contributors();
+                   QSet<qint64> serverUserIds;
+                   int overlap = 0;
+                   int rawSameRank = 0;
+                   int rawDifferentRank = 0;
+                   int detailCount = 0;
+
+                   for (const QJsonValue &value : serverRows) {
+                       if (!value.isObject())
+                           continue;
+                       const QJsonObject row = value.toObject();
+                       const qint64 userId = static_cast<qint64>(
+                           row.value(QLatin1String("user")).toObject()
+                               .value(QLatin1String("user_id")).toDouble());
+                       const int serverRank = row.value(QLatin1String("rank")).toInt();
+                       if (userId <= 0 || serverRank <= 0 || serverUserIds.contains(userId))
+                           continue;
+                       serverUserIds.insert(userId);
+
+                       const int localRank = local->rankForUserId(userId);
+                       if (localRank > 0) {
+                           ++overlap;
+                           if (localRank == serverRank)
+                               ++rawSameRank;
+                           else
+                               ++rawDifferentRank;
+                       }
+
+                       if (serverRank <= 20 || (localRank > 0 && localRank != serverRank
+                                                && detailCount < 40)) {
+                           qCDebug(lcShowroomRanking)
+                               << "Stage rank detail room:" << roomId << "user_id:" << userId
+                               << "server_rank:" << serverRank << "local_rank:" << localRank
+                               << "local_pt:" << local->totalPtForUserId(userId);
+                           ++detailCount;
+                       }
+                   }
+
+                   for (int row = 0; row < qMin(local->rowCount(), 20); ++row) {
+                       const QModelIndex index = local->index(row);
+                       const qint64 userId = local->data(index, GiftContributorModel::UserIdRole)
+                                                 .toLongLong();
+                       if (serverUserIds.contains(userId))
+                           continue;
+                       qCDebug(lcShowroomRanking)
+                           << "Stage rank detail room:" << roomId << "user_id:" << userId
+                           << "server_rank:" << 0 << "local_rank:" << row + 1
+                           << "local_pt:"
+                           << local->data(index, GiftContributorModel::TotalPtRole).toInt();
+                   }
+
+                   qCInfo(lcShowroomRanking)
+                       << "Stage rank comparison room:" << roomId
+                       << "requested_utc:" << requestedAt
+                       << "scope:" << "server_stage_vs_local_gift_log_plus_socket"
+                       << "historical_points_verified:" << false
+                       << "server_users:" << serverUserIds.size()
+                       << "local_users:" << local->rowCount()
+                       << "overlap:" << overlap << "raw_same_rank:" << rawSameRank
+                       << "raw_different_rank:" << rawDifferentRank
+                       << "server_only:" << serverUserIds.size() - overlap
+                       << "local_only:" << local->rowCount() - overlap;
                });
 }
 
 void ShowroomController::stopLiveSocket()
 {
+    stopStageUserRanking();
     if (!m_liveSocket)
         return;
 

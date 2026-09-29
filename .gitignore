@@ -10,6 +10,10 @@ build/
 CMakeUserPresets.json
 .qtcreator/
 .DS_Store
+.scratch/
+docs/
+AGENTS.md
+CONTEXT.md
 
 # --- Qt / Qt Design Studio (auto-generated) ---
 qds.cmake

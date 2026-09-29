@@ -379,7 +379,8 @@ QString ApplicationLogging::categoryRules(const QString &startupRules) const
         "showroom.*.critical=true\n");
 
     if (m_mode == PlaybackDiagnostics) {
-        rules += QStringLiteral("showroom.player.debug=true\nshowroom.proxy.debug=true\n");
+        rules += QStringLiteral("showroom.player.debug=true\nshowroom.proxy.debug=true\n"
+                                "showroom.ranking.debug=true\n");
     }
 
     if (!m_categoryRules.trimmed().isEmpty())

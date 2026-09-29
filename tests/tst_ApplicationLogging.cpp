@@ -19,6 +19,7 @@ Q_LOGGING_CATEGORY(lcTestProxy, "showroom.proxy")
 Q_LOGGING_CATEGORY(lcTestLive, "showroom.live")
 Q_LOGGING_CATEGORY(lcTestApi, "showroom.api")
 Q_LOGGING_CATEGORY(lcTestController, "showroom.controller")
+Q_LOGGING_CATEGORY(lcTestRanking, "showroom.ranking")
 
 namespace {
 
@@ -159,10 +160,12 @@ private slots:
             QVERIFY(logging.save());
 
             qCDebug(lcTestPlayer) << "player-debug-entry";
+            qCDebug(lcTestRanking) << "ranking-debug-entry";
             qCDebug(lcTestLive) << "live-debug-entry";
             logging.flush();
             const QString contents = readAllLogs(logging.logDirectory());
             QVERIFY(contents.contains("player-debug-entry"));
+            QVERIFY(contents.contains("ranking-debug-entry"));
             QVERIFY(!contents.contains("live-debug-entry"));
 
             logging.setFileEnabled(false);
